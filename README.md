@@ -1,6 +1,13 @@
-# AI Poker GTO 训练系统
+# 🎯 AI 德州扑克 GTO 训练系统
 
-一个专业的扑克 Game Theory Optimal (GTO) 策略训练应用，帮助玩家通过科学的方法提升决策水平。
+[![Deploy with Vercel](https://vercel.com/button)](https://ai-dz-poker-rkc2.vercel.app)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+
+> **🌐 在线体验**: [https://ai-dz-poker-rkc2.vercel.app](https://ai-dz-poker-rkc2.vercel.app)
+
+专业的德州扑克游戏理论最优策略(GTO)训练平台，提供实时策略分析、场景化训练和专业数据可视化。
 
 ## 🎯 核心功能
 
