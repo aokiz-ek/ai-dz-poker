@@ -49,10 +49,11 @@ coverage/
 *.tsbuildinfo
 
 # Context management files (for Claude Code)
+CLAUDE.md
 .claude-context/
 dev-notes/
 session-*.md
 project-status.json
 系统架构图.md
 CFR.md
-.claude
+CLAUDE.md
