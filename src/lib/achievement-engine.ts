@@ -677,6 +677,10 @@ export class AchievementEngine {
     });
   }
 
+  static checkAchievementUnlocked(achievementId: string): boolean {
+    return this.isAchievementUnlocked(achievementId);
+  }
+
   static setActiveTitle(titleId: string): boolean {
     const title = this.titles.find(t => t.id === titleId);
     if (title && this.getAvailableTitles().includes(title)) {

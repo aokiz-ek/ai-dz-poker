@@ -54,3 +54,81 @@ export interface GtoStrategy {
 export interface HandRange {
   [handCode: string]: number; // hand like "AA", "AKs", "AKo" -> frequency 0-1
 }
+
+// 翻后相关类型定义
+export type HandRank = 
+  | 'high-card'
+  | 'pair'
+  | 'two-pair'
+  | 'three-of-a-kind'
+  | 'straight'
+  | 'flush'
+  | 'full-house'
+  | 'four-of-a-kind'
+  | 'straight-flush'
+  | 'royal-flush';
+
+export interface HandStrengthResult {
+  rank: HandRank;
+  strength: number; // 0-7462 (higher = stronger)
+  kickers: Rank[];
+  description: string;
+}
+
+export type DrawType = 
+  | 'straight-draw'
+  | 'flush-draw'
+  | 'straight-flush-draw'
+  | 'gutshot'
+  | 'open-ended'
+  | 'backdoor-straight'
+  | 'backdoor-flush';
+
+export interface DrawAnalysis {
+  draws: DrawType[];
+  outs: number;
+  odds: number; // percentage to complete draw
+  impliedOdds: number;
+}
+
+export interface BlockerEffect {
+  blockedHands: string[];
+  unblockedHands: string[];
+  impact: number; // -1 to 1, negative = blocks opponent value, positive = blocks opponent bluffs
+}
+
+export interface PostflopContext {
+  board: Card[];
+  position: 'IP' | 'OOP'; // In Position / Out of Position
+  aggressor: 'hero' | 'villain';
+  potSize: number;
+  effectiveStack: number;
+  opponentRange: HandRange;
+}
+
+export type BoardTextureType = 'dry' | 'wet' | 'coordinated' | 'rainbow';
+
+export interface BoardTexture {
+  type: BoardTextureType;
+  strength: number; // 0-100 board strength
+  draws: DrawType[];
+  pairedness: number; // 0-100 how paired the board is
+  connectedness: number; // 0-100 how connected the board is
+  suitedness: number; // 0-100 how suited the board is
+}
+
+export interface PostflopStrategy extends GtoStrategy {
+  bet: number;
+  check: number;
+  call: number;
+  raise: number;
+  fold: number;
+  sizing: BetSizing[];
+  bluffCatcher: number;
+  valueTarget: number;
+}
+
+export interface BetSizing {
+  size: number; // as fraction of pot (0.33, 0.5, 0.75, 1.0, etc.)
+  frequency: number; // 0-100 percentage
+}

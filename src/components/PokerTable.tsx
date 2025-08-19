@@ -10,22 +10,28 @@ import ActionButtons from './ActionButtons';
 interface PokerTableProps {
   gameState: GameState;
   currentPlayerId?: string;
-  onPlayerAction: (action: PlayerAction) => void;
+  onPlayerAction?: (action: PlayerAction) => void;
   showAllCards?: boolean; // For training/analysis mode
+  heroId?: string; // For replay mode
+  readOnly?: boolean; // For replay mode
+  showEquity?: boolean; // For analysis mode
 }
 
 const PokerTable: React.FC<PokerTableProps> = ({
   gameState,
   currentPlayerId,
   onPlayerAction,
-  showAllCards = false
+  showAllCards = false,
+  heroId,
+  readOnly = false,
+  showEquity = false
 }) => {
-  const currentPlayer = gameState.players.find(p => p.id === currentPlayerId);
-  const isCurrentPlayerTurn = currentPlayer && 
-    gameState.players[gameState.currentPlayer]?.id === currentPlayerId;
+  const currentPlayer = gameState.players.find(p => p.id === (currentPlayerId || heroId));
+  const isCurrentPlayerTurn = !readOnly && currentPlayer && 
+    gameState.players[gameState.currentPlayer]?.id === (currentPlayerId || heroId);
 
   const handleAction = (actionType: ActionType, amount?: number) => {
-    if (!currentPlayer) return;
+    if (!currentPlayer || !onPlayerAction || readOnly) return;
     
     onPlayerAction({
       type: actionType,
