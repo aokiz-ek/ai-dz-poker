@@ -135,7 +135,6 @@ export const GtoAnalysisPanel: React.FC<GtoAnalysisPanelProps> = ({
                   type="info"
                   icon={<BulbOutlined />}
                   showIcon
-                  size="small"
                 />
               )}
             </Space>
@@ -171,11 +170,11 @@ export const GtoAnalysisPanel: React.FC<GtoAnalysisPanelProps> = ({
                     
                     <div>
                       <Text>
-                        期望: {deviation.expectedAction} ({(deviation.expectedFrequency * 100).toFixed(1)}%)
+                        期望频率: {(deviation.expectedFrequency * 100).toFixed(1)}%
                       </Text>
                       <br />
                       <Text>
-                        实际: {deviation.actualAction} ({(deviation.actualFrequency * 100).toFixed(1)}%)
+                        实际: {deviation.action} ({(deviation.actualFrequency * 100).toFixed(1)}%)
                       </Text>
                     </div>
                     

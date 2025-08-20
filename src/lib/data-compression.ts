@@ -424,7 +424,7 @@ export class DataCompressor {
     }
     
     let w = '';
-    const inputString = String.fromCharCode(...input);
+    const inputString = String.fromCharCode.apply(null, Array.from(input));
     
     for (const c of inputString) {
       const wc = w + c;
@@ -496,8 +496,8 @@ export class DataCompressor {
   private calculateChecksum(data: Uint8Array): string {
     // 简单的校验和计算
     let checksum = 0;
-    for (const byte of data) {
-      checksum = (checksum + byte) & 0xFFFFFFFF;
+    for (let i = 0; i < data.length; i++) {
+      checksum = (checksum + data[i]) & 0xFFFFFFFF;
     }
     return checksum.toString(16);
   }

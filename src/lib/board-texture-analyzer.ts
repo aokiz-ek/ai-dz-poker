@@ -216,7 +216,7 @@ export class BoardTextureAnalyzer {
    * 检查是否有开口顺子听可能
    */
   private static hasOpenEndedPossibility(values: number[]): boolean {
-    const uniqueValues = [...new Set(values)].sort((a, b) => b - a);
+    const uniqueValues = Array.from(new Set(values)).sort((a, b) => b - a);
     
     // 检查是否存在连续的3张或4张牌
     for (let i = 0; i <= uniqueValues.length - 3; i++) {
@@ -238,7 +238,7 @@ export class BoardTextureAnalyzer {
    * 检查是否有内听可能
    */
   private static hasGutshotPossibility(values: number[]): boolean {
-    const uniqueValues = [...new Set(values)].sort((a, b) => b - a);
+    const uniqueValues = Array.from(new Set(values)).sort((a, b) => b - a);
     
     // 检查是否存在间隔为2的4张牌组合
     for (let i = 0; i <= uniqueValues.length - 2; i++) {
@@ -257,7 +257,7 @@ export class BoardTextureAnalyzer {
    * 检查是否有后门顺子听可能
    */
   private static hasBackdoorStraightPossibility(values: number[]): boolean {
-    const uniqueValues = [...new Set(values)].sort((a, b) => b - a);
+    const uniqueValues = Array.from(new Set(values)).sort((a, b) => b - a);
     
     // 简化实现：检查是否有2张牌在4张牌的范围内
     for (let i = 0; i < uniqueValues.length - 1; i++) {

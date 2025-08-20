@@ -362,7 +362,7 @@ export class HandEvaluator {
   private static analyzeStraightDraw(cards: Card[]) {
     // 简化的顺子听分析 - 实际实现会更复杂
     const ranks = cards.map(c => this.RANK_VALUES[c.rank]).sort((a, b) => b - a);
-    const uniqueRanks = [...new Set(ranks)];
+    const uniqueRanks = Array.from(new Set(ranks));
     
     // 检查开口顺子听 (需要4张连续牌)
     for (let i = 0; i <= uniqueRanks.length - 4; i++) {

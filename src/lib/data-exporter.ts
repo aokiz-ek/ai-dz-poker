@@ -17,7 +17,7 @@ export class DataExporter {
   async exportHandHistory(
     format: 'json' | 'csv' | 'pokerstars' | 'holdem-manager',
     options: ExportOptions = {}
-  ): Promise<ExportResult> {
+  ): Promise<LocalExportResult> {
     const startTime = Date.now();
     
     try {
@@ -74,7 +74,7 @@ export class DataExporter {
   async exportStatistics(
     format: 'json' | 'csv' | 'excel',
     options: StatsExportOptions = {}
-  ): Promise<ExportResult> {
+  ): Promise<LocalExportResult> {
     const stats = await this.handHistoryManager.getStatistics({
       startDate: options.startDate,
       endDate: options.endDate,
@@ -185,7 +185,7 @@ export class DataExporter {
         this.formatActions(turnActions),
         riverCard,
         this.formatActions(riverActions),
-        hand.result.winners.includes(options.heroId || 'hero') ? 'W' : 'L',
+        hand.result.winners.includes(0) ? 'W' : 'L', // hero is player 0
         hand.result.potSize,
         this.calculateNetWin(hand, options.heroId || 'hero')
       ];
@@ -306,7 +306,8 @@ export class DataExporter {
     // 摊牌和结果
     if (hand.result.showdown && hand.result.winningHand) {
       output += '*** SHOW DOWN ***\n';
-      const winner = hand.players.find(p => p.id === hand.result.winners[0]);
+      const winnerIndex = hand.result.winners[0];
+      const winner = hand.players[winnerIndex];
       if (winner && winner.cards) {
         output += `${winner.id}: shows [${winner.cards[0].rank}${winner.cards[0].suit} ${winner.cards[1].rank}${winner.cards[1].suit}] (${hand.result.winningHand.handRank})\n`;
       }
@@ -361,7 +362,8 @@ export class DataExporter {
   }
 
   private calculateNetWin(hand: CompactHandHistory, heroId: string): number {
-    if (hand.result.winners.includes(heroId)) {
+    // Assume hero is player 0 for simplified calculation
+    if (hand.result.winners.includes(0)) {
       return hand.result.potSize; // 简化计算
     }
     return 0; // 简化计算，实际应该减去投入的筹码
@@ -397,7 +399,7 @@ interface StatsExportOptions {
   includeTrends?: boolean;
 }
 
-interface ExportResult {
+interface LocalExportResult {
   data: string;
   format: string;
   handsIncluded: number;

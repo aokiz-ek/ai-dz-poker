@@ -9,7 +9,7 @@ import {
   BarChartOutlined,
   StarOutlined,
   BookOutlined,
-  TargetOutlined,
+  TagOutlined,
   BulbOutlined
 } from '@ant-design/icons';
 import { TrainingScenarioConfig, TrainingFocusArea, PlayerTrainingStats } from '@/lib/training/scenario-manager';
@@ -184,7 +184,7 @@ export const TrainingModeSelection: React.FC<TrainingModeSelectionProps> = ({
           {isWeakness && (
             <Tag 
               color="orange" 
-              icon={<TargetOutlined />}
+              icon={<TagOutlined />}
               style={{ marginBottom: 8 }}
             >
               需要加强

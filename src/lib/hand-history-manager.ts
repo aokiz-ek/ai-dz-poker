@@ -39,7 +39,7 @@ export class LocalHandHistoryManager {
 
   // =================== 核心CRUD操作 ===================
 
-  async recordHand(gameState: GameState, actions: any[], result: any): Promise<HandHistory> {
+  async recordHand(gameState: GameState, actions: any[], result: any): Promise<CompactHandHistory> {
     const handHistory: CompactHandHistory = {
       id: `hand_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now(),
@@ -47,8 +47,8 @@ export class LocalHandHistoryManager {
       blinds: [gameState.smallBlind, gameState.bigBlind],
       maxPlayers: gameState.players.length,
       players: this.convertPlayers(gameState.players),
-      actions: this.convertActions(actions),
-      snapshots: this.createSnapshots(gameState),
+      actions: this.convertActions(actions) as any,
+      snapshots: this.createSnapshots(gameState) as any,
       result: result
     };
 
@@ -56,7 +56,7 @@ export class LocalHandHistoryManager {
       const compressed = await this.compressor.compressHandHistory(handHistory);
       await this.storageManager.set(`hand:${handHistory.id}`, compressed);
     } else {
-      await this.storageManager.saveHandHistory(handHistory);
+      await this.storageManager.saveHandHistory(handHistory as any);
     }
 
     this.cache.set(handHistory.id, handHistory);

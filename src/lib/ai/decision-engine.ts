@@ -523,7 +523,9 @@ export class AIDecisionEngine {
     gtoStrategy: GtoStrategy,
     personality: AIPersonality
   ): number {
-    const gtoProbability = gtoStrategy[selectedAction.action] || 0;
+    // Map 'all-in' action to 'raise' for GTO strategy lookup
+    const actionKey = selectedAction.action === 'all-in' ? 'raise' : selectedAction.action as keyof GtoStrategy;
+    const gtoProbability = gtoStrategy[actionKey] || 0;
     const actualProbability = selectedAction.probability;
     
     // 计算偏离度 (-1到1)
@@ -614,11 +616,13 @@ export class AIDecisionEngine {
     // 清理过期缓存
     if (this.decisionCache.size > 1000) {
       const cutoff = Date.now() - this.CACHE_TTL;
-      for (const [k, v] of this.decisionCache.entries()) {
+      const keysToDelete: string[] = [];
+      this.decisionCache.forEach((v, k) => {
         if (v.timestamp < cutoff) {
-          this.decisionCache.delete(k);
+          keysToDelete.push(k);
         }
-      }
+      });
+      keysToDelete.forEach(k => this.decisionCache.delete(k));
     }
   }
 }

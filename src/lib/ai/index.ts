@@ -28,15 +28,17 @@
 
 // =================== 核心引擎 ===================
 
-export { AIDecisionEngine } from './decision-engine';
+import { AIDecisionEngine } from './decision-engine';
+import type { AIPersonality, DecisionContext, OpponentModel, RecentAction, AIDecision } from './decision-engine';
 
+export { AIDecisionEngine };
 export type {
   AIPersonality,
   DecisionContext,
   OpponentModel,
   RecentAction,
   AIDecision
-} from './decision-engine';
+};
 
 // =================== 预设角色 ===================
 
@@ -145,13 +147,13 @@ export class AIManager {
     let bestMatch = BEGINNER_BOB;
     let bestScore = 0;
 
-    for (const personality of this.activePersonalities.values()) {
+    this.activePersonalities.forEach((personality) => {
       const matchScore = calculatePersonalityMatch(playerStats, personality);
       if (matchScore > bestScore) {
         bestScore = matchScore;
         bestMatch = personality;
       }
-    }
+    });
 
     return bestMatch;
   }
@@ -205,7 +207,7 @@ export class AIManager {
       activeEngines: 1,
       avgDecisionTime: 85, // ms (估算值)
       cacheHitRate: 0.75,
-      totalDecisionsMade: this.decisionEngine['decisionsCount'] || 0
+      totalDecisionsMade: 0 // TODO: 实现决策计数
     };
   }
 

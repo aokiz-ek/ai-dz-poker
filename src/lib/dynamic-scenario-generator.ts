@@ -334,7 +334,12 @@ export class DynamicScenarioGenerator {
   }
 
   private mapSeverityToDifficulty(severity: 'minor' | 'moderate' | 'major'): 'beginner' | 'intermediate' | 'advanced' {
-    return { minor: 'beginner', moderate: 'intermediate', major: 'advanced' }[severity];
+    const mapping: Record<'minor' | 'moderate' | 'major', 'beginner' | 'intermediate' | 'advanced'> = {
+      minor: 'beginner',
+      moderate: 'intermediate', 
+      major: 'advanced'
+    };
+    return mapping[severity];
   }
 
   // =================== 模板初始化 ===================

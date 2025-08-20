@@ -306,7 +306,7 @@ export interface HandHistoryCache {
   missCount: number;
 }
 
-export interface PerformanceMetrics {
+export interface SystemPerformanceMetrics {
   averageQueryTime: number;
   averageSaveTime: number;
   averageAnalysisTime: number;

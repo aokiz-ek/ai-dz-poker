@@ -245,7 +245,7 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                   loading={isSyncing}
                   disabled={!networkStatus.online}
                   block={mobile}
-                  size={mobile ? 'middle' : 'default'}
+                  size={mobile ? 'middle' : 'large'}
                 >
                   {isSyncing ? '同步中...' : '立即同步'}
                 </Button>
@@ -253,7 +253,7 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                   icon={<SettingOutlined />}
                   onClick={() => setIsConfigModalVisible(true)}
                   block={mobile}
-                  size={mobile ? 'middle' : 'default'}
+                  size={mobile ? 'middle' : 'large'}
                 >
                   设置
                 </Button>
@@ -265,36 +265,38 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                 <Statistic
                   title="网络状态"
                   value={networkStatus.online ? '在线' : '离线'}
-                  valueStyle={{ color: networkStatus.online ? '#3f8600' : '#cf1322' }}
-                  valueStyle={{ fontSize: mobile ? 16 : 24 }}
-                  titleStyle={{ fontSize: mobile ? 12 : 14 }}
-                />
+                  valueStyle={{ 
+                    color: networkStatus.online ? '#3f8600' : '#cf1322',
+                    fontSize: mobile ? 16 : 24 
+                  }}
+                                  />
               </Col>
               <Col xs={12} sm={6}>
                 <Statistic
                   title="最后同步"
                   value={syncStatus ? formatTime(syncStatus.lastSyncTime) : '从未同步'}
                   valueStyle={{ fontSize: mobile ? 16 : 24 }}
-                  titleStyle={{ fontSize: mobile ? 12 : 14 }}
-                />
+                                  />
               </Col>
               <Col xs={12} sm={6}>
                 <Statistic
                   title="待同步项"
                   value={syncStatus?.pendingChanges || 0}
-                  valueStyle={{ color: syncStatus?.pendingChanges ? '#faad14' : '#3f8600' }}
-                  valueStyle={{ fontSize: mobile ? 16 : 24 }}
-                  titleStyle={{ fontSize: mobile ? 12 : 14 }}
-                />
+                  valueStyle={{ 
+                    color: syncStatus?.pendingChanges ? '#faad14' : '#3f8600',
+                    fontSize: mobile ? 16 : 24 
+                  }}
+                                  />
               </Col>
               <Col xs={12} sm={6}>
                 <Statistic
                   title="同步错误"
                   value={syncStatus?.syncErrors.length || 0}
-                  valueStyle={{ color: syncStatus?.syncErrors.length ? '#cf1322' : '#3f8600' }}
-                  valueStyle={{ fontSize: mobile ? 16 : 24 }}
-                  titleStyle={{ fontSize: mobile ? 12 : 14 }}
-                />
+                  valueStyle={{ 
+                    color: syncStatus?.syncErrors.length ? '#cf1322' : '#3f8600',
+                    fontSize: mobile ? 16 : 24 
+                  }}
+                                  />
               </Col>
             </Row>
 
@@ -349,7 +351,7 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                       value={syncConfig.strategy}
                       onChange={(value) => handleConfigUpdate({ strategy: value })}
                       style={{ width: '100%', marginTop: 8 }}
-                      size={mobile ? 'middle' : 'default'}
+                      size={mobile ? 'middle' : 'large'}
                     >
                       <Option value="manual">手动同步</Option>
                       <Option value="auto">自动同步</Option>
@@ -363,7 +365,7 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                       value={syncConfig.syncInterval}
                       onChange={(value) => handleConfigUpdate({ syncInterval: value })}
                       style={{ width: '100%', marginTop: 8 }}
-                      size={mobile ? 'middle' : 'default'}
+                      size={mobile ? 'middle' : 'large'}
                     >
                       <Option value={5}>5分钟</Option>
                       <Option value={15}>15分钟</Option>
@@ -378,7 +380,7 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                       value={syncConfig.conflictResolution}
                       onChange={(value) => handleConfigUpdate({ conflictResolution: value })}
                       style={{ width: '100%', marginTop: 8 }}
-                      size={mobile ? 'middle' : 'default'}
+                      size={mobile ? 'middle' : 'large'}
                     >
                       <Option value="local">使用本地版本</Option>
                       <Option value="remote">使用云端版本</Option>
@@ -464,12 +466,12 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({
                   </Text>
                 </Timeline.Item>
               )}
-              {syncStatus?.syncErrors.length > 0 && (
+              {(syncStatus?.syncErrors?.length || 0) > 0 && (
                 <Timeline.Item color="red">
                   <Text strong style={{ fontSize: mobile ? 14 : 16 }}>同步错误</Text>
                   <br />
                   <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>
-                    {syncStatus.syncErrors.length} 个错误
+                    {syncStatus?.syncErrors?.length || 0} 个错误
                   </Text>
                 </Timeline.Item>
               )}

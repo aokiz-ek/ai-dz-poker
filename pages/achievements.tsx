@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { AchievementEngine } from '@/lib/achievement-engine';
-import { UserAchievements, Achievement } from '@/types/achievements';
+import { UserAchievements, Achievement, AchievementProgress } from '@/types/achievements';
 
 // 成就类别定义
 interface AchievementCategory {
@@ -88,7 +88,8 @@ const getRarityConfig = (rarity: string) => {
 const AchievementCard: React.FC<{
   achievement: Achievement;
   isUnlocked: boolean;
-}> = ({ achievement, isUnlocked }) => {
+  progress?: AchievementProgress;
+}> = ({ achievement, isUnlocked, progress }) => {
   const rarityConfig = getRarityConfig(achievement.rarity);
   
   return (
@@ -140,42 +141,55 @@ const AchievementCard: React.FC<{
         </p>
 
         {/* 进度条（如果适用） */}
-        {isUnlocked && achievement.progress !== undefined && achievement.maxProgress && (
+        {isUnlocked && progress && progress.targetProgress > 0 && (
           <div className="mb-4">
             <div className="flex justify-between text-xs text-gray-500 mb-1">
               <span>进度</span>
-              <span>{achievement.progress}/{achievement.maxProgress}</span>
+              <span>{progress.currentProgress}/{progress.targetProgress}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
                 className={`h-2 rounded-full bg-gradient-to-r ${rarityConfig.color}`}
-                style={{ width: `${(achievement.progress / achievement.maxProgress) * 100}%` }}
+                style={{ width: `${progress.progressPercentage}%` }}
               />
             </div>
           </div>
         )}
 
         {/* 奖励信息 */}
-        {isUnlocked && achievement.rewards && achievement.rewards.length > 0 && (
+        {isUnlocked && achievement.rewards && (achievement.rewards.title || achievement.rewards.badge || achievement.rewards.experience) && (
           <div className="border-t border-gray-100 pt-3 mt-3">
             <div className="text-xs text-gray-500 mb-2">奖励</div>
             <div className="flex flex-wrap gap-1 justify-center">
-              {achievement.rewards.map((reward, index) => (
+              {achievement.rewards.title && (
                 <span 
-                  key={index}
                   className={`px-2 py-1 rounded-full text-xs bg-gradient-to-r ${rarityConfig.color} text-white`}
                 >
-                  {reward}
+                  📛 {achievement.rewards.title}
                 </span>
-              ))}
+              )}
+              {achievement.rewards.badge && (
+                <span 
+                  className={`px-2 py-1 rounded-full text-xs bg-gradient-to-r ${rarityConfig.color} text-white`}
+                >
+                  🏅 {achievement.rewards.badge}
+                </span>
+              )}
+              {achievement.rewards.experience && (
+                <span 
+                  className={`px-2 py-1 rounded-full text-xs bg-gradient-to-r ${rarityConfig.color} text-white`}
+                >
+                  ⚡ {achievement.rewards.experience} EXP
+                </span>
+              )}
             </div>
           </div>
         )}
 
         {/* 解锁时间 */}
-        {isUnlocked && achievement.unlockedAt && (
+        {isUnlocked && progress && progress.unlockedAt && (
           <div className="text-xs text-gray-400 mt-3">
-            解锁于: {new Date(achievement.unlockedAt).toLocaleDateString('zh-CN')}
+            解锁于: {new Date(progress.unlockedAt).toLocaleDateString('zh-CN')}
           </div>
         )}
       </div>
@@ -408,7 +422,8 @@ export default function Achievements() {
                     <AchievementCard 
                       key={achievement.id} 
                       achievement={achievement} 
-                      isUnlocked={true} 
+                      isUnlocked={true}
+                      progress={AchievementEngine.getAchievementProgress(achievement.id) || undefined}
                     />
                   ))}
                 </div>
@@ -428,7 +443,8 @@ export default function Achievements() {
                     <AchievementCard 
                       key={achievement.id} 
                       achievement={achievement} 
-                      isUnlocked={false} 
+                      isUnlocked={false}
+                      progress={AchievementEngine.getAchievementProgress(achievement.id) || undefined}
                     />
                   ))}
                 </div>

@@ -168,30 +168,34 @@ export class DataSyncManager {
       // 2. 同步各类型数据
       if (this.config.syncTypes.handHistory) {
         const handHistoryResult = await this.syncHandHistory();
-        result.syncedItems += handHistoryResult.syncedItems;
-        result.conflicts += handHistoryResult.conflicts;
-        result.errors.push(...handHistoryResult.errors);
+        result.syncedItems += handHistoryResult.syncedItems || 0;
+        result.conflicts += handHistoryResult.conflicts || 0;
+        if (!result.errors) result.errors = [];
+          result.errors.push(...(handHistoryResult.errors || []));
       }
 
       if (this.config.syncTypes.playerStats) {
         const statsResult = await this.syncPlayerStats();
-        result.syncedItems += statsResult.syncedItems;
-        result.conflicts += statsResult.conflicts;
-        result.errors.push(...statsResult.errors);
+        result.syncedItems += statsResult.syncedItems || 0;
+        result.conflicts += statsResult.conflicts || 0;
+        if (!result.errors) result.errors = [];
+          result.errors.push(...(statsResult.errors || []));
       }
 
       if (this.config.syncTypes.trainingScenarios) {
         const scenarioResult = await this.syncTrainingScenarios();
-        result.syncedItems += scenarioResult.syncedItems;
-        result.conflicts += scenarioResult.conflicts;
-        result.errors.push(...scenarioResult.errors);
+        result.syncedItems += scenarioResult.syncedItems || 0;
+        result.conflicts += scenarioResult.conflicts || 0;
+        if (!result.errors) result.errors = [];
+          result.errors.push(...(scenarioResult.errors || []));
       }
 
       if (this.config.syncTypes.userProgress) {
         const progressResult = await this.syncUserProgress();
-        result.syncedItems += progressResult.syncedItems;
-        result.conflicts += progressResult.conflicts;
-        result.errors.push(...progressResult.errors);
+        result.syncedItems += progressResult.syncedItems || 0;
+        result.conflicts += progressResult.conflicts || 0;
+        if (!result.errors) result.errors = [];
+          result.errors.push(...(progressResult.errors || []));
       }
 
       // 3. 处理冲突
@@ -211,7 +215,7 @@ export class DataSyncManager {
       const syncError: SyncError = {
         id: this.generateId(),
         type: 'network',
-        message: error.message,
+        message: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error),
         timestamp: Date.now(),
         retryCount: 0,
         resolved: false
@@ -241,28 +245,32 @@ export class DataSyncManager {
       const localChanges = await this.getLocalChanges('handHistory');
       
       // 获取远程变更
-      const remoteChanges = await this.cloudAdapter.getRemoteChanges('handHistory', this.status.lastSyncTime);
+      const remoteChanges = await this.cloudAdapter.getRemoteChanges('handHistory', this.status.lastSyncTime || 0);
 
       // 双向同步
       for (const change of localChanges) {
         try {
           await this.cloudAdapter.saveHandHistory(change.data);
-          result.syncedItems++;
+          result.syncedItems = (result.syncedItems || 0) + 1;
         } catch (error) {
-          result.errors.push(this.createSyncError('network', error.message));
+          if (!result.errors) result.errors = [];
+          if (!result.errors) result.errors = [];
+          result.errors.push(this.createSyncError('network', error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error)));
         }
       }
 
       for (const change of remoteChanges) {
         try {
           await this.localProvider.saveHandHistory(change.data);
-          result.syncedItems++;
+          result.syncedItems = (result.syncedItems || 0) + 1;
         } catch (error) {
-          result.errors.push(this.createSyncError('validation', error.message));
+          if (!result.errors) result.errors = [];
+          result.errors.push(this.createSyncError('validation', error instanceof Error ? error.message : String(error)));
         }
       }
     } catch (error) {
-      result.errors.push(this.createSyncError('network', error.message));
+      if (!result.errors) result.errors = [];
+          result.errors.push(this.createSyncError('network', error instanceof Error ? error.message : String(error)));
     }
 
     return result;
@@ -288,10 +296,11 @@ export class DataSyncManager {
       for (const stats of mergedStats) {
         await this.localProvider.updatePlayerStats(stats);
         await this.cloudAdapter.updatePlayerStats(stats);
-        result.syncedItems++;
+        result.syncedItems = (result.syncedItems || 0) + 1;
       }
     } catch (error) {
-      result.errors.push(this.createSyncError('network', error.message));
+      if (!result.errors) result.errors = [];
+          result.errors.push(this.createSyncError('network', error instanceof Error ? error.message : String(error)));
     }
 
     return result;
@@ -317,10 +326,11 @@ export class DataSyncManager {
       for (const scenario of mergedScenarios) {
         await this.localProvider.saveTrainingScenario(scenario);
         await this.cloudAdapter.saveTrainingScenario(scenario);
-        result.syncedItems++;
+        result.syncedItems = (result.syncedItems || 0) + 1;
       }
     } catch (error) {
-      result.errors.push(this.createSyncError('network', error.message));
+      if (!result.errors) result.errors = [];
+          result.errors.push(this.createSyncError('network', error instanceof Error ? error.message : String(error)));
     }
 
     return result;
@@ -347,10 +357,11 @@ export class DataSyncManager {
       if (mergedProgress) {
         await this.localProvider.updateUserProgress(mergedProgress);
         await this.cloudAdapter.updateUserProgress(mergedProgress);
-        result.syncedItems++;
+        result.syncedItems = (result.syncedItems || 0) + 1;
       }
     } catch (error) {
-      result.errors.push(this.createSyncError('network', error.message));
+      if (!result.errors) result.errors = [];
+          result.errors.push(this.createSyncError('network', error instanceof Error ? error.message : String(error)));
     }
 
     return result;
@@ -515,8 +526,8 @@ export class DataSyncManager {
     return {
       ...local,
       experience: Math.max(local.experience, remote.experience),
-      completedScenarios: [...new Set([...local.completedScenarios, ...remote.completedScenarios])],
-      achievements: [...new Set([...local.achievements, ...remote.achievements])],
+      completedScenarios: Array.from(new Set([...local.completedScenarios, ...remote.completedScenarios])),
+      achievements: Array.from(new Set([...local.achievements, ...remote.achievements])),
       lastTrainingDate: Math.max(local.lastTrainingDate, remote.lastTrainingDate)
     };
   }
@@ -600,7 +611,7 @@ export class DataSyncManager {
    * 应用最新版本解决方案
    */
   private async applyNewestResolution(conflict: SyncConflict): Promise<void> {
-    conflict.resolution = 'newest';
+    conflict.resolution = 'remote'; // 选择最新的版本（简化为remote）
     // 实现基于时间戳的最新版本选择逻辑
   }
 

@@ -62,7 +62,7 @@ export default function ReplayPage() {
             timestamp: Date.now() - 3600000
           }],
           result: {
-            winners: ['hero'],
+            winners: [0], // hero is player 0
             potSize: 15,
             showdown: false
           }
@@ -100,7 +100,7 @@ export default function ReplayPage() {
             timestamp: Date.now() - 3300000
           }],
           result: {
-            winners: ['villain1'],
+            winners: [1], // villain1 is player 1
             potSize: 95,
             showdown: true
           }
@@ -175,7 +175,7 @@ export default function ReplayPage() {
             { playerId: 'villain1', type: 'call', amount: 6, timestamp: Date.now(), stage: 'preflop' as const }
           ],
           result: {
-            winners: ['hero'],
+            winners: [0], // hero is player 0
             potSize: 15,
             showdown: false
           }
@@ -220,7 +220,7 @@ export default function ReplayPage() {
             { playerId: 'villain1', type: 'call', amount: 8, timestamp: Date.now(), stage: 'preflop' as const }
           ],
           result: {
-            winners: ['hero'],
+            winners: [0], // hero is player 0
             potSize: 32,
             showdown: false
           }
@@ -266,7 +266,7 @@ export default function ReplayPage() {
             { playerId: 'hero', type: 'call', amount: 30, timestamp: Date.now(), stage: 'preflop' as const }
           ],
           result: {
-            winners: ['villain1'],
+            winners: [1], // villain1 is player 1
             potSize: 95,
             showdown: true
           }
@@ -469,8 +469,8 @@ export default function ReplayPage() {
                           <Text type="secondary">盲注: {hand.blinds[0]}/{hand.blinds[1]}</Text>
                           <Text type="secondary">玩家: {hand.players.length}</Text>
                           <Text type="secondary">底池: ${hand.result.potSize}</Text>
-                          <Text style={{ color: hand.result.winners.includes('hero') ? '#52c41a' : '#ff4d4f' }}>
-                            {hand.result.winners.includes('hero') ? '✅ 获胜' : '❌ 失败'}
+                          <Text style={{ color: hand.result.winners.includes(0) ? '#52c41a' : '#ff4d4f' }}> {/* hero is player 0 */}
+                            {hand.result.winners.includes(0) ? '✅ 获胜' : '❌ 失败'} {/* hero is player 0 */}
                           </Text>
                         </Space>
                       </div>

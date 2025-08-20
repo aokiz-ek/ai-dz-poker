@@ -25,10 +25,11 @@ import {
   BarChartOutlined,
   TrophyOutlined,
   ClockCircleOutlined,
-  TargetOutlined,
+  TagOutlined,
   BookOutlined,
   LineChartOutlined,
-  StarOutlined
+  StarOutlined,
+  PlayCircleOutlined
 } from '@ant-design/icons';
 import { 
   DecisionAnalysis, 
@@ -182,8 +183,7 @@ export const ScenarioAnalysisDisplay: React.FC<ScenarioAnalysisDisplayProps> = (
                       percent={score} 
                       strokeColor={color}
                       showInfo={false}
-                      size="small"
-                    />
+                                          />
                   </div>
                 </Col>
               );
@@ -199,7 +199,7 @@ export const ScenarioAnalysisDisplay: React.FC<ScenarioAnalysisDisplayProps> = (
                 <Tag 
                   key={weakness} 
                   color="orange" 
-                  icon={<TargetOutlined />}
+                  icon={<TagOutlined />}
                 >
                   {getFocusAreaName(weakness)}
                 </Tag>
@@ -266,8 +266,7 @@ export const ScenarioAnalysisDisplay: React.FC<ScenarioAnalysisDisplayProps> = (
                     message="改进建议"
                     description={analysis.improvement}
                     type="info"
-                    size="small"
-                    showIcon
+                                        showIcon
                   />
                 )}
 
@@ -278,7 +277,7 @@ export const ScenarioAnalysisDisplay: React.FC<ScenarioAnalysisDisplayProps> = (
                     <br />
                     <Space wrap>
                       {analysis.relatedConcepts.map(concept => (
-                        <Tag key={concept} size="small" color="blue">
+                        <Tag key={concept} color="blue">
                           {concept}
                         </Tag>
                       ))}
@@ -305,7 +304,7 @@ export const ScenarioAnalysisDisplay: React.FC<ScenarioAnalysisDisplayProps> = (
             <Panel 
               header="重点提升领域" 
               key="1"
-              extra={<TargetOutlined />}
+              extra={<TagOutlined />}
             >
               {scenarioResult.weaknessesIdentified.length > 0 ? (
                 <div>
@@ -384,7 +383,7 @@ export const ScenarioAnalysisDisplay: React.FC<ScenarioAnalysisDisplayProps> = (
               </Button>
               <Button 
                 size="large"
-                icon={<TargetOutlined />}
+                icon={<TagOutlined />}
                 onClick={onRetryScenario}
               >
                 重新挑战本场景
