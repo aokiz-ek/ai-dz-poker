@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Button, Progress, Slider, Typography, Space, Row, Col } from 'antd';
-import { PlayCircleOutlined, PauseCircleOutlined, StepBackwardOutlined, StepForwardOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Space, Row, Col, Badge, Tooltip, Progress } from 'antd';
+import { 
+  PlayCircleOutlined, 
+  PauseCircleOutlined, 
+  SettingOutlined, 
+  CloseOutlined,
+  FullscreenOutlined,
+  SoundOutlined,
+  InfoCircleOutlined,
+  BarChartOutlined,
+  TableOutlined,
+  QuestionCircleOutlined
+} from '@ant-design/icons';
 import { CompactHandHistory, HandSnapshot } from '@/types/hand-history';
 import { GameStage } from '@/types/poker';
 import { ReplayControls } from './ReplayControls';
@@ -21,6 +32,9 @@ interface ReplayState {
   playbackSpeed: number;
   showAnalysis: boolean;
   totalSteps: number;
+  isFullscreen: boolean;
+  soundEnabled: boolean;
+  autoAdvance: boolean;
 }
 
 /**
@@ -37,7 +51,10 @@ export const HandReplayViewer: React.FC<HandReplayViewerProps> = ({
     isPlaying: autoPlay,
     playbackSpeed: 1,
     showAnalysis: false,
-    totalSteps: 0
+    totalSteps: 0,
+    isFullscreen: false,
+    soundEnabled: true,
+    autoAdvance: true
   });
 
   const [currentGameState, setCurrentGameState] = useState<any>(null);
@@ -198,114 +215,291 @@ export const HandReplayViewer: React.FC<HandReplayViewerProps> = ({
   const currentStep = getCurrentStep();
   const progressPercentage = getProgressPercentage();
 
-  return (
-    <div className="hand-replay-viewer" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* 标题栏 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Title level={4} style={{ margin: 0 }}>
-                手牌回放: {handHistory.id}
-              </Title>
-              <Text type="secondary">
-                {new Date(handHistory.timestamp).toLocaleString()}
-              </Text>
-            </Space>
-          </Col>
-          <Col>
-            <Space>
-              <Button 
-                type="text" 
-                icon={<SettingOutlined />}
-                onClick={toggleAnalysis}
-              >
-                {replayState.showAnalysis ? '隐藏分析' : '显示分析'}
-              </Button>
-              {onClose && (
-                <Button onClick={onClose}>关闭</Button>
-              )}
-            </Space>
-          </Col>
-        </Row>
-      </Card>
+  const toggleFullscreen = useCallback(() => {
+    setReplayState(prev => ({ ...prev, isFullscreen: !prev.isFullscreen }));
+  }, []);
 
-      {/* 主要内容区域 */}
-      <Row gutter={16} style={{ flex: 1, overflow: 'hidden' }}>
-        {/* 牌桌区域 */}
-        <Col span={replayState.showAnalysis ? 16 : 24}>
-          <Card 
-            title={
+  const toggleSound = useCallback(() => {
+    setReplayState(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }));
+  }, []);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Prevent default for handled keys
+      const handledKeys = ['Space', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'KeyA', 'KeyF', 'KeyM'];
+      if (handledKeys.includes(event.code)) {
+        event.preventDefault();
+      }
+
+      switch (event.code) {
+        case 'Space':
+          // Play/Pause
+          if (replayState.isPlaying) {
+            handlePause();
+          } else {
+            handlePlay();
+          }
+          break;
+        case 'ArrowLeft':
+          // Step backward
+          if (replayState.currentStep > 0) {
+            handleStepBackward();
+          }
+          break;
+        case 'ArrowRight':
+          // Step forward
+          if (replayState.currentStep < replayState.totalSteps - 1) {
+            handleStepForward();
+          }
+          break;
+        case 'Home':
+          // Jump to start
+          setReplayState(prev => ({ ...prev, currentStep: 0, isPlaying: false }));
+          break;
+        case 'End':
+          // Jump to end
+          setReplayState(prev => ({ ...prev, currentStep: prev.totalSteps - 1, isPlaying: false }));
+          break;
+        case 'KeyA':
+          // Toggle analysis
+          toggleAnalysis();
+          break;
+        case 'KeyF':
+          // Toggle fullscreen
+          toggleFullscreen();
+          break;
+        case 'KeyM':
+          // Toggle mute
+          toggleSound();
+          break;
+        case 'Digit1':
+        case 'Digit2':
+        case 'Digit3':
+        case 'Digit4':
+          // Speed shortcuts
+          const speeds = [0.5, 1, 1.5, 2];
+          const speedIndex = parseInt(event.code.slice(-1)) - 1;
+          if (speeds[speedIndex]) {
+            handleSpeedChange(speeds[speedIndex]);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [replayState, handlePlay, handlePause, handleStepBackward, handleStepForward, handleSpeedChange, toggleAnalysis, toggleFullscreen, toggleSound]);
+
+  const formatTime = (step: number): string => {
+    const minutes = Math.floor(step / 60);
+    const seconds = step % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className={`hand-replay-viewer ${replayState.isFullscreen ? 'fullscreen' : ''} min-h-screen bg-poker-bg-dark flex flex-col`}>
+      {/* Enhanced Header */}
+      <div className="bg-poker-bg-card border-b border-poker-border-default">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Space size="large">
+                <div>
+                  <Title level={4} className="text-poker-text-primary mb-1">
+                    手牌回放: #{handHistory.id.slice(-8)}
+                  </Title>
+                  <div className="flex items-center space-x-4 text-sm text-poker-text-secondary">
+                    <span>{new Date(handHistory.timestamp).toLocaleString()}</span>
+                    <Badge count={`${handHistory.blinds.join('/')}`} style={{ backgroundColor: 'var(--poker-blue)' }} />
+                    <span>{handHistory.players.length} 玩家</span>
+                    <span className={handHistory.result.winners.includes(0) ? 'text-poker-win' : 'text-poker-red'}>
+                      {handHistory.result.winners.includes(0) ? '获胜' : '失败'}
+                    </span>
+                  </div>
+                </div>
+              </Space>
+            </Col>
+            <Col>
               <Space>
-                <span>第 {replayState.currentStep + 1} 步</span>
-                {currentStep && (
-                  <Text type="secondary">
-                    {currentStep.description}
-                  </Text>
+                <Tooltip title={
+                  <div className="space-y-1 text-xs">
+                    <div><kbd className="px-1 bg-gray-800 rounded">空格</kbd> 播放/暂停</div>
+                    <div><kbd className="px-1 bg-gray-800 rounded">←→</kbd> 单步控制</div>
+                    <div><kbd className="px-1 bg-gray-800 rounded">Home/End</kbd> 跳转</div>
+                    <div><kbd className="px-1 bg-gray-800 rounded">A</kbd> 分析 <kbd className="px-1 bg-gray-800 rounded">F</kbd> 全屏 <kbd className="px-1 bg-gray-800 rounded">M</kbd> 静音</div>
+                    <div><kbd className="px-1 bg-gray-800 rounded">1-4</kbd> 播放速度</div>
+                  </div>
+                } placement="bottomRight">
+                  <Button 
+                    type="text" 
+                    icon={<QuestionCircleOutlined />}
+                    className="text-poker-text-secondary hover:text-poker-secondary"
+                  />
+                </Tooltip>
+                <Tooltip title="音效 (M)">
+                  <Button 
+                    type="text" 
+                    icon={<SoundOutlined />}
+                    className={`${replayState.soundEnabled ? 'text-poker-secondary' : 'text-poker-text-secondary'} hover:text-poker-secondary`}
+                    onClick={toggleSound}
+                  />
+                </Tooltip>
+                <Tooltip title="全屏 (F)">
+                  <Button 
+                    type="text" 
+                    icon={<FullscreenOutlined />}
+                    className="text-poker-text-secondary hover:text-poker-secondary"
+                    onClick={toggleFullscreen}
+                  />
+                </Tooltip>
+                <Tooltip title={`${replayState.showAnalysis ? '隐藏分析' : '显示分析'} (A)`}>
+                  <Button 
+                    type="text" 
+                    icon={<BarChartOutlined />}
+                    className={`${replayState.showAnalysis ? 'text-poker-secondary' : 'text-poker-text-secondary'} hover:text-poker-secondary`}
+                    onClick={toggleAnalysis}
+                  />
+                </Tooltip>
+                {onClose && (
+                  <Button 
+                    type="text"
+                    icon={<CloseOutlined />}
+                    onClick={onClose}
+                    className="text-poker-text-secondary hover:text-poker-red"
+                  >
+                    关闭
+                  </Button>
                 )}
               </Space>
-            }
-            style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-            bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-          >
-            {/* 牌桌渲染区域 */}
-            <div style={{ flex: 1, position: 'relative', minHeight: 400 }}>
-              {currentGameState && (
-                <PokerTable
-                  gameState={currentGameState}
-                  heroId="hero" // 假设hero是主角
-                  readOnly={true}
-                  showAllCards={true}  // 回放模式显示所有玩家手牌
-                  showEquity={replayState.showAnalysis}
+            </Col>
+          </Row>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Poker Table Section */}
+        <div className={`flex-1 flex flex-col ${replayState.showAnalysis ? 'pr-4' : ''}`}>
+          {/* Game Stage Indicators */}
+          <div className="bg-poker-bg-elevated border-b border-poker-border-default px-6 py-2">
+            <div className="stage-markers">
+              {['翻牌前', '翻牌', '转牌', '河牌'].map((stage, index) => (
+                <div
+                  key={stage}
+                  className={`stage-marker ${index <= (currentStep?.stage === 'preflop' ? 0 : 
+                    currentStep?.stage === 'flop' ? 1 : 
+                    currentStep?.stage === 'turn' ? 2 : 3) ? 'active' : ''}`}
+                >
+                  {stage}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Poker Table */}
+          <div className="flex-1 p-6 bg-poker-bg-dark">
+            <Card 
+              className="h-full bg-poker-bg-card border-poker-border-default"
+              title={
+                <div className="flex items-center justify-between">
+                  <Space>
+                    <TableOutlined className="text-poker-secondary" />
+                    <span className="text-poker-text-primary">
+                      第 {replayState.currentStep + 1} 步
+                    </span>
+                    {currentStep && (
+                      <Text className="text-poker-text-secondary">
+                        {currentStep.description}
+                      </Text>
+                    )}
+                  </Space>
+                  <div className="text-poker-text-secondary text-sm">
+                    {formatTime(replayState.currentStep)} / {formatTime(replayState.totalSteps - 1)}
+                  </div>
+                </div>
+              }
+              bodyStyle={{ height: 'calc(100% - 57px)', padding: '24px' }}
+            >
+              <div className="h-full relative">
+                {currentGameState && (
+                  <PokerTable
+                    gameState={currentGameState}
+                    heroId="hero"
+                    readOnly={true}
+                    showAllCards={true}
+                    showEquity={replayState.showAnalysis}
+                  />
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Enhanced Timeline and Controls */}
+          <div className="bg-poker-bg-card border-t border-poker-border-default p-4">
+            {/* Timeline with Action Markers */}
+            <div className="poker-timeline">
+              <div className="timeline-track" onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const percentage = clickX / rect.width;
+                const newStep = Math.round(percentage * (replayState.totalSteps - 1));
+                handleStepChange(Math.max(0, Math.min(replayState.totalSteps - 1, newStep)));
+              }}>
+                <div 
+                  className="timeline-progress"
+                  style={{ width: `${progressPercentage}%` }}
                 />
-              )}
+                <div 
+                  className="timeline-cursor"
+                  style={{ left: `${progressPercentage}%` }}
+                />
+                {/* Action markers would go here */}
+              </div>
             </div>
 
-            {/* 进度条 */}
-            <div style={{ marginTop: 16, marginBottom: 16 }}>
-              <Progress 
-                percent={progressPercentage}
-                showInfo={false}
-                strokeColor="#1890ff"
-                style={{ marginBottom: 8 }}
-              />
-              <Slider
-                min={0}
-                max={replayState.totalSteps - 1}
-                value={replayState.currentStep}
-                onChange={handleStepChange}
-                tooltip={{ 
-                  formatter: (value) => `步骤 ${value! + 1}/${replayState.totalSteps}` 
-                }}
-              />
+            {/* Progress Info */}
+            <div className="flex justify-between items-center mb-4 text-sm text-poker-text-secondary">
+              <span>步骤 {replayState.currentStep + 1} / {replayState.totalSteps}</span>
+              <span>{progressPercentage.toFixed(1)}% 完成</span>
             </div>
 
-            {/* 控制按钮 */}
+            {/* Enhanced Controls */}
             <ReplayControls
               isPlaying={replayState.isPlaying}
               canStepBackward={replayState.currentStep > 0}
               canStepForward={replayState.currentStep < replayState.totalSteps - 1}
               playbackSpeed={replayState.playbackSpeed}
+              volume={1}
+              isMuted={!replayState.soundEnabled}
+              loop={false}
+              autoAdvance={replayState.autoAdvance}
               onPlay={handlePlay}
               onPause={handlePause}
               onStepBackward={handleStepBackward}
               onStepForward={handleStepForward}
+              onJumpToStart={() => setReplayState(prev => ({ ...prev, currentStep: 0, isPlaying: false }))}
+              onJumpToEnd={() => setReplayState(prev => ({ ...prev, currentStep: prev.totalSteps - 1, isPlaying: false }))}
               onSpeedChange={handleSpeedChange}
+              onVolumeChange={(volume) => {/* Handle volume change */}}
+              onToggleMute={() => setReplayState(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+              onToggleLoop={() => {/* Handle loop toggle */}}
+              onToggleAutoAdvance={() => setReplayState(prev => ({ ...prev, autoAdvance: !prev.autoAdvance }))}
             />
-          </Card>
-        </Col>
+          </div>
+        </div>
 
-        {/* GTO分析面板 */}
+        {/* GTO Analysis Panel */}
         {replayState.showAnalysis && (
-          <Col span={8}>
+          <div className="w-80 analysis-panel">
             <GtoAnalysisPanel
               handHistory={handHistory}
               currentStep={replayState.currentStep}
               currentGameState={currentGameState}
             />
-          </Col>
+          </div>
         )}
-      </Row>
+      </div>
     </div>
   );
 };

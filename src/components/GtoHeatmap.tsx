@@ -122,7 +122,7 @@ export default function GtoHeatmap() {
     } else if (actions.call === maxAction && actions.call >= 40) {
       return '适合跟注的不错起手牌。避免过度游戏，但在合适的底池赔率下可以继续。';
     } else if (actions.fold >= 60) {
-      return '边缘起手牌，长期盈利能力较低。在大多数情况下建议弃牌。';
+      return '边缘起手牌，长期收益能力较低。在大多数情况下建议弃牌。';
     } else {
       return '需要混合策略。根据位置、筹码量和对手倾向调整打法。';
     }

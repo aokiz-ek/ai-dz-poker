@@ -2,13 +2,37 @@ import { Card, Rank, Suit } from '@/types/poker';
 
 // 将牌转换为字符串表示
 export function cardToString(card: Card): string {
-  const suitSymbols = {
-    hearts: '♥',
-    diamonds: '♦',
-    clubs: '♣',
-    spades: '♠'
+  const suitLetters = {
+    hearts: 'h',
+    diamonds: 'd',
+    clubs: 'c',
+    spades: 's'
   };
-  return `${card.rank}${suitSymbols[card.suit]}`;
+  return `${card.rank}${suitLetters[card.suit]}`;
+}
+
+// 将字符串表示转换为Card对象
+export function stringToCard(cardString: string): Card {
+  if (!cardString || cardString.length < 2) {
+    throw new Error(`Invalid card string: ${cardString}`);
+  }
+  
+  const rank = cardString.slice(0, -1) as Rank;
+  const suitLetter = cardString.slice(-1).toLowerCase();
+  
+  const suitMap: { [key: string]: Suit } = {
+    'h': 'hearts',
+    'd': 'diamonds', 
+    'c': 'clubs',
+    's': 'spades'
+  };
+  
+  const suit = suitMap[suitLetter];
+  if (!suit) {
+    throw new Error(`Invalid suit letter: ${suitLetter}`);
+  }
+  
+  return { rank, suit };
 }
 
 // 将牌面转换为数值以便比较
@@ -63,15 +87,15 @@ export function getAllStartingHands(): string[] {
   return hands;
 }
 
-// 格式化筹码量显示
+// 格式化积分量显示
 export function formatStack(amount: number): string {
   if (amount >= 1000000) {
-    return `${(amount / 1000000).toFixed(1)}M`;
+    return `${Math.round(amount / 1000000)}M`;
   }
   if (amount >= 1000) {
-    return `${(amount / 1000).toFixed(1)}K`;
+    return `${Math.round(amount / 1000)}K`;
   }
-  return amount.toString();
+  return Math.round(amount).toString();
 }
 
 // 格式化彩池大小显示

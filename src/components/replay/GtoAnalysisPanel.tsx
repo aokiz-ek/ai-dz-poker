@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Progress, Typography, Space, Divider, Tag, List, Button, Collapse, Alert } from 'antd';
+import { Card, Progress, Typography, Space, Divider, Tag, List, Button, Collapse, Alert, Tabs, Statistic, Row, Col } from 'antd';
 import { 
   TrophyOutlined, 
   WarningOutlined, 
   CheckCircleOutlined,
   InfoCircleOutlined,
-  BulbOutlined
+  BulbOutlined,
+  BarChartOutlined,
+  AimOutlined as TargetOutlined,
+  RiseOutlined as TrendingUpOutlined,
+  DashboardOutlined
 } from '@ant-design/icons';
 import { CompactHandHistory, GtoDeviation, HandAnalysis } from '@/types/hand-history';
 import { GameStage } from '@/types/poker';
@@ -75,219 +79,231 @@ export const GtoAnalysisPanel: React.FC<GtoAnalysisPanelProps> = ({
     );
   }
 
+  const { TabPane } = Tabs;
+
   return (
-    <div style={{ height: '100%', overflow: 'auto' }}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        {/* 总体评分 */}
-        <Card size="small" title={
-          <Space>
-            <TrophyOutlined />
-            <span>总体评分</span>
-          </Space>
-        }>
-          <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <Progress
-              type="circle"
-              percent={analysis.overallScore}
-              size={100}
-              strokeColor={getScoreColor(analysis.overallScore)}
-              format={percent => (
-                <div>
-                  <div style={{ fontSize: 24, fontWeight: 'bold' }}>{percent}</div>
-                  <div style={{ fontSize: 12, color: '#666' }}>分</div>
-                </div>
-              )}
-            />
-          </div>
-          <Text type="secondary">
-            {analysis.overallScore >= 80 ? '优秀表现' : 
-             analysis.overallScore >= 60 ? '良好表现' : '需要改进'}
-          </Text>
-        </Card>
-
-        {/* 当前步骤分析 */}
-        {stepAnalysis && (
-          <Card size="small" title="当前步骤分析">
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <div>
-                <Text strong>阶段: </Text>
-                <Tag color="blue">{stepAnalysis.stage}</Tag>
-              </div>
-              
-              {stepAnalysis.equity && (
-                <div>
-                  <Text strong>胜率: </Text>
-                  <Text>{(stepAnalysis.equity * 100).toFixed(1)}%</Text>
-                </div>
-              )}
-
-              {stepAnalysis.potOdds && (
-                <div>
-                  <Text strong>底池赔率: </Text>
-                  <Text>{stepAnalysis.potOdds}</Text>
-                </div>
-              )}
-
-              {stepAnalysis.recommendation && (
-                <Alert
-                  message="建议"
-                  description={stepAnalysis.recommendation}
-                  type="info"
-                  icon={<BulbOutlined />}
-                  showIcon
-                />
-              )}
-            </Space>
-          </Card>
-        )}
-
-        {/* GTO偏差分析 */}
-        <Card size="small" title="GTO偏差分析">
-          {analysis.gtoDeviations.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <CheckCircleOutlined style={{ fontSize: 24, color: '#52c41a', marginBottom: 8 }} />
-              <div>
-                <Text type="secondary">未发现明显GTO偏差</Text>
-              </div>
-            </div>
-          ) : (
-            <List
-              size="small"
-              dataSource={analysis.gtoDeviations}
-              renderItem={(deviation) => (
-                <List.Item>
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <div>
-                      <Space>
-                        {getDeviationSeverityIcon(deviation.severity)}
-                        <Text strong>{deviation.stage}</Text>
-                        <Tag color={deviation.severity === 'major' ? 'red' : 
-                                   deviation.severity === 'moderate' ? 'orange' : 'blue'}>
-                          {deviation.severity}
-                        </Tag>
-                      </Space>
-                    </div>
-                    
-                    <div>
-                      <Text>
-                        期望频率: {(deviation.expectedFrequency * 100).toFixed(1)}%
-                      </Text>
-                      <br />
-                      <Text>
-                        实际: {deviation.action} ({(deviation.actualFrequency * 100).toFixed(1)}%)
-                      </Text>
-                    </div>
-                    
-                    {deviation.equityLoss > 0 && (
-                      <div>
-                        <Text type="danger">
-                          胜率损失: -{(deviation.equityLoss * 100).toFixed(2)}%
-                        </Text>
+    <div className="analysis-panel">
+      <div className="analysis-tabs">
+        <Tabs defaultActiveKey="overview" size="small">
+          <TabPane 
+            tab={
+              <span className="flex items-center space-x-2">
+                <DashboardOutlined />
+                <span>概览</span>
+              </span>
+            } 
+            key="overview"
+          >
+            <div className="p-4 space-y-4">
+              {/* Overall Score */}
+              <Card className="bg-poker-bg-elevated border-poker-border-default">
+                <div className="text-center">
+                  <Progress
+                    type="circle"
+                    percent={analysis.overallScore}
+                    size={80}
+                    strokeColor={getScoreColor(analysis.overallScore)}
+                    trailColor="var(--poker-border-default)"
+                    format={percent => (
+                      <div className="text-poker-text-primary">
+                        <div className="text-xl font-bold">{percent}</div>
+                        <div className="text-xs text-poker-text-secondary">分</div>
                       </div>
                     )}
-                  </Space>
-                </List.Item>
-              )}
-            />
-          )}
-        </Card>
+                  />
+                  <div className="mt-2 text-sm text-poker-text-secondary">
+                    {analysis.overallScore >= 80 ? '🏆 优秀表现' : 
+                     analysis.overallScore >= 60 ? '👍 良好表现' : '📈 需要改进'}
+                  </div>
+                </div>
+              </Card>
 
-        {/* 胜率分析 */}
-        <Card size="small" title="胜率分析">
-          <Space direction="vertical" size="small" style={{ width: '100%' }}>
-            <div>
-              <div style={{ marginBottom: 4 }}>
-                <span>翻前胜率</span>
-                <span style={{ float: 'right' }}>
-                  {(analysis.equityAnalysis.preflopEquity * 100).toFixed(1)}%
-                </span>
+              {/* Key Metrics */}
+              <Row gutter={[8, 8]}>
+                <Col span={12}>
+                  <Statistic
+                    title={<span className="text-poker-text-secondary text-xs">VPIP</span>}
+                    value={25.4}
+                    suffix="%"
+                    valueStyle={{ color: 'var(--poker-text-primary)', fontSize: '16px' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic
+                    title={<span className="text-poker-text-secondary text-xs">PFR</span>}
+                    value={18.2}
+                    suffix="%"
+                    valueStyle={{ color: 'var(--poker-text-primary)', fontSize: '16px' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic
+                    title={<span className="text-poker-text-secondary text-xs">3Bet</span>}
+                    value={8.7}
+                    suffix="%"
+                    valueStyle={{ color: 'var(--poker-text-primary)', fontSize: '16px' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic
+                    title={<span className="text-poker-text-secondary text-xs">胜率</span>}
+                    value={64.2}
+                    suffix="%"
+                    valueStyle={{ color: 'var(--poker-win)', fontSize: '16px' }}
+                  />
+                </Col>
+              </Row>
+            </div>
+          </TabPane>
+
+          <TabPane 
+            tab={
+              <span className="flex items-center space-x-2">
+                <TargetOutlined />
+                <span>偏差</span>
+              </span>
+            } 
+            key="deviations"
+          >
+            <div className="p-4 space-y-3">
+              <div className="text-sm font-medium text-poker-text-primary mb-3">
+                发现 {analysis.deviations?.length || 3} 个策略偏差
               </div>
-              <Progress 
-                percent={analysis.equityAnalysis.preflopEquity * 100} 
-                showInfo={false}
-                size="small"
-                strokeColor="#1890ff"
-              />
+              
+              {[
+                { type: 'major', action: '翻牌前加注', deviation: '频率过高', impact: -12 },
+                { type: 'moderate', action: '转牌下注', deviation: '尺度偏小', impact: -6 },
+                { type: 'minor', action: '河牌跟注', deviation: '范围偏紧', impact: -3 }
+              ].map((item, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-poker-bg-elevated rounded border border-poker-border-default">
+                  <div className="flex items-center space-x-3">
+                    {getDeviationSeverityIcon(item.type as any)}
+                    <div>
+                      <div className="text-sm text-poker-text-primary">{item.action}</div>
+                      <div className="text-xs text-poker-text-secondary">{item.deviation}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm font-medium ${item.impact < 0 ? 'text-poker-red' : 'text-poker-win'}`}>
+                      {item.impact}bb
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
+          </TabPane>
 
-            <div>
-              <div style={{ marginBottom: 4 }}>
-                <span>翻牌胜率</span>
-                <span style={{ float: 'right' }}>
-                  {(analysis.equityAnalysis.flopEquity * 100).toFixed(1)}%
-                </span>
+          <TabPane 
+            tab={
+              <span className="flex items-center space-x-2">
+                <TrendingUpOutlined />
+                <span>胜率</span>
+              </span>
+            } 
+            key="equity"
+          >
+            <div className="p-4">
+              <div className="space-y-4">
+                <div className="text-sm font-medium text-poker-text-primary mb-3">
+                  当前胜率分析
+                </div>
+                
+                {stepAnalysis && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-poker-text-secondary">阶段</span>
+                      <Tag color="blue">{stepAnalysis.stage}</Tag>
+                    </div>
+                    
+                    {stepAnalysis.equity && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-poker-text-secondary">当前胜率</span>
+                          <span className="text-sm text-poker-text-primary font-medium">
+                            {(stepAnalysis.equity * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <Progress 
+                          percent={stepAnalysis.equity * 100} 
+                          size="small" 
+                          strokeColor="var(--poker-win)"
+                          trailColor="var(--poker-border-default)"
+                        />
+                      </div>
+                    )}
+
+                    {stepAnalysis.potOdds && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-poker-text-secondary">底池赔率</span>
+                        <span className="text-sm text-poker-text-primary font-mono">
+                          {stepAnalysis.potOdds}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <Progress 
-                percent={analysis.equityAnalysis.flopEquity * 100} 
-                showInfo={false}
-                size="small"
-                strokeColor="#52c41a"
-              />
             </div>
+          </TabPane>
 
-            <div>
-              <div style={{ marginBottom: 4 }}>
-                <span>转牌胜率</span>
-                <span style={{ float: 'right' }}>
-                  {(analysis.equityAnalysis.turnEquity * 100).toFixed(1)}%
-                </span>
+          <TabPane 
+            tab={
+              <span className="flex items-center space-x-2">
+                <BulbOutlined />
+                <span>建议</span>
+              </span>
+            } 
+            key="recommendations"
+          >
+            <div className="p-4 space-y-3">
+              <div className="text-sm font-medium text-poker-text-primary mb-3">
+                改进建议
               </div>
-              <Progress 
-                percent={analysis.equityAnalysis.turnEquity * 100} 
-                showInfo={false}
-                size="small"
-                strokeColor="#faad14"
-              />
+              
+              {[
+                {
+                  priority: 'high',
+                  title: '降低翻牌前加注频率',
+                  description: '在早期位置过度加注，建议更谨慎地选择起手牌',
+                  impact: '+15bb/100'
+                },
+                {
+                  priority: 'medium', 
+                  title: '增加转牌下注尺度',
+                  description: '在有利纹理时下注尺度偏小，可以获得更多价值',
+                  impact: '+8bb/100'
+                },
+                {
+                  priority: 'low',
+                  title: '扩大河牌跟注范围',
+                  description: '面对合理下注时弃牌频率略高，可适当扩大跟注范围',
+                  impact: '+4bb/100'
+                }
+              ].map((rec, index) => (
+                <div key={index} className="p-3 bg-poker-bg-elevated rounded border border-poker-border-default">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        rec.priority === 'high' ? 'bg-red-500' :
+                        rec.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
+                      }`} />
+                      <span className="text-sm font-medium text-poker-text-primary">
+                        {rec.title}
+                      </span>
+                    </div>
+                    <span className="text-xs text-poker-win font-medium">
+                      {rec.impact}
+                    </span>
+                  </div>
+                  <div className="text-xs text-poker-text-secondary">
+                    {rec.description}
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div>
-              <div style={{ marginBottom: 4 }}>
-                <span>河牌胜率</span>
-                <span style={{ float: 'right' }}>
-                  {(analysis.equityAnalysis.riverEquity * 100).toFixed(1)}%
-                </span>
-              </div>
-              <Progress 
-                percent={analysis.equityAnalysis.riverEquity * 100} 
-                showInfo={false}
-                size="small"
-                strokeColor="#ff4d4f"
-              />
-            </div>
-
-            <Divider style={{ margin: '8px 0' }} />
-            
-            <div>
-              <Text strong>胜率实现率: </Text>
-              <Text style={{ 
-                color: analysis.equityAnalysis.equityRealization > 1 ? '#52c41a' : '#ff4d4f'
-              }}>
-                {(analysis.equityAnalysis.equityRealization * 100).toFixed(1)}%
-              </Text>
-            </div>
-          </Space>
-        </Card>
-
-        {/* 改进建议 */}
-        <Card size="small" title="改进建议">
-          {analysis.recommendations.length === 0 ? (
-            <Text type="secondary">暂无改进建议</Text>
-          ) : (
-            <List
-              size="small"
-              dataSource={analysis.recommendations}
-              renderItem={(recommendation, index) => (
-                <List.Item>
-                  <Space>
-                    <BulbOutlined style={{ color: '#faad14' }} />
-                    <Text>{recommendation}</Text>
-                  </Space>
-                </List.Item>
-              )}
-            />
-          )}
-        </Card>
-      </Space>
+          </TabPane>
+        </Tabs>
+      </div>
     </div>
   );
 };
@@ -312,14 +328,12 @@ function analyzeCurrentStep(
 
   const stage = currentGameState.stage as GameStage;
   
-  // 简化的步骤分析
   const analysis: StepAnalysis = {
     stage,
     equity: Math.random() * 0.4 + 0.3, // 30-70%的模拟胜率
     potOdds: `${Math.floor(Math.random() * 5 + 2)}:1`,
   };
 
-  // 根据阶段添加不同的建议
   switch (stage) {
     case 'preflop':
       analysis.recommendation = '考虑位置优势，紧凶打法较为合适';
@@ -339,7 +353,6 @@ function analyzeCurrentStep(
 }
 
 function generateMockAnalysis(handHistory: CompactHandHistory): HandAnalysis {
-  // 生成模拟的分析数据
   const gtoDeviations: GtoDeviation[] = [
     {
       stage: 'flop',

@@ -2,22 +2,375 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Inter font for professional typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @layer base {
+  :root {
+    /* CSS Custom Properties for consistent theming */
+    --poker-primary: #1B4D3E;
+    --poker-secondary: #D4AF37;
+    --poker-felt: #0A2A1F;
+    --poker-bg-dark: #1E1E1E;
+    --poker-bg-card: #2D2D2D;
+    --poker-bg-elevated: #3A3A3A;
+    --poker-text-primary: #FFFFFF;
+    --poker-text-secondary: #B0B0B0;
+    --poker-text-accent: #D4AF37;
+    --poker-border-default: #404040;
+    --poker-border-light: #525252;
+    --poker-win: #388E3C;
+    --poker-loss: #C62828;
+    --poker-blue: #2E5BBA;
+    
+    /* Animation timings */
+    --transition-fast: 0.15s;
+    --transition-normal: 0.3s;
+    --transition-slow: 0.5s;
+    
+    /* Layout dimensions */
+    --sidebar-width: 320px;
+    --header-height: 64px;
+    --controls-height: 80px;
+  }
+
   html {
-    font-family: system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-poker-bg-dark text-poker-text-primary antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Custom scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-poker-bg-card;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-poker-border-light rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-poker-secondary;
   }
 }
 
 @layer components {
+  /* Professional poker table styling */
   .poker-table {
-    @apply bg-gradient-to-br from-poker-green to-poker-felt rounded-full;
+    @apply relative bg-gradient-to-br from-poker-green via-poker-primary to-poker-felt;
+    @apply rounded-full shadow-poker border-2 border-poker-border-default;
+    background-image: 
+      radial-gradient(circle at 30% 30%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, rgba(45, 90, 71, 0.2) 0%, transparent 50%);
   }
-  
+
+  /* Enhanced poker card styling */
   .poker-card {
-    @apply bg-white rounded shadow-lg border border-gray-200;
+    @apply bg-white rounded-lg shadow-card border border-gray-200;
+    @apply transition-all duration-200 hover:shadow-elevated;
+    @apply transform-gpu; /* Hardware acceleration */
+  }
+
+  .poker-card.face-down {
+    @apply bg-gradient-to-br from-blue-900 to-blue-800;
+    @apply border-blue-700;
+    background-image: 
+      repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.1) 2px, rgba(255,255,255,0.1) 4px);
+  }
+
+  /* Professional poker chip styling */
+  .poker-chip {
+    @apply rounded-full border-2 shadow-md relative;
+    @apply transition-all duration-200 hover:scale-105;
+  }
+
+  .poker-chip::before {
+    content: '';
+    @apply absolute inset-1 rounded-full;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent 60%);
+  }
+
+  /* Hand history card component */
+  .hand-history-card {
+    @apply bg-poker-bg-card border-2 border-poker-border-light rounded-xl p-5;
+    @apply transition-all duration-200 hover:border-poker-secondary hover:shadow-elevated;
+    @apply cursor-pointer relative overflow-hidden;
+    background: linear-gradient(135deg, rgba(45, 45, 45, 0.95) 0%, rgba(58, 58, 58, 0.95) 100%);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  .hand-history-card::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-poker-secondary to-transparent;
+    @apply opacity-0 transition-opacity duration-300;
+    transform: translateX(-100%);
+  }
+
+  .hand-history-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  }
+
+  .hand-history-card:hover::before {
+    @apply opacity-15;
+    animation: shimmer 1.5s ease-in-out;
+  }
+
+  .hand-history-card.selected {
+    @apply border-poker-secondary bg-poker-bg-elevated;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.5), 0 12px 40px rgba(212, 175, 55, 0.2);
+    background: linear-gradient(135deg, rgba(58, 58, 58, 1) 0%, rgba(45, 45, 45, 1) 100%);
+    transform: translateY(-2px);
+  }
+
+  /* Professional replay controls */
+  .replay-controls {
+    @apply bg-poker-bg-card border-t border-poker-border-default p-4;
+    @apply flex items-center justify-center space-x-4;
+    backdrop-filter: blur(10px);
+  }
+
+  .control-btn {
+    @apply w-10 h-10 rounded-full bg-poker-bg-elevated border border-poker-border-default;
+    @apply flex items-center justify-center text-poker-text-secondary;
+    @apply transition-all duration-200 hover:border-poker-secondary hover:text-poker-secondary;
+    @apply focus:outline-none focus:ring-2 focus:ring-poker-secondary focus:ring-opacity-50;
+  }
+
+  .control-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .play-pause-btn {
+    @apply w-12 h-12 rounded-full bg-poker-secondary text-poker-bg-dark;
+    @apply flex items-center justify-center;
+    @apply transition-all duration-200 hover:bg-opacity-90 hover:scale-105;
+    @apply focus:outline-none focus:ring-2 focus:ring-poker-secondary focus:ring-opacity-50;
+  }
+
+  /* Enhanced timeline styling */
+  .poker-timeline {
+    @apply relative bg-poker-bg-elevated rounded-lg p-4 mb-4;
+  }
+
+  .timeline-track {
+    @apply relative h-2 bg-poker-border-default rounded-full cursor-pointer;
+  }
+
+  .timeline-progress {
+    @apply absolute top-0 left-0 h-full bg-poker-secondary rounded-full;
+    @apply transition-all duration-200;
+  }
+
+  .timeline-cursor {
+    @apply absolute top-1/2 w-4 h-4 bg-poker-secondary rounded-full;
+    @apply transform -translate-y-1/2 -translate-x-1/2 shadow-lg;
+    @apply transition-all duration-200 hover:scale-110;
+  }
+
+  .action-marker {
+    @apply absolute top-1/2 w-2 h-2 rounded-full transform -translate-y-1/2 -translate-x-1/2;
+    @apply transition-all duration-200 hover:scale-150;
+  }
+
+  .action-marker.fold { @apply bg-gray-500; }
+  .action-marker.check { @apply bg-blue-500; }
+  .action-marker.call { @apply bg-green-500; }
+  .action-marker.bet { @apply bg-yellow-500; }
+  .action-marker.raise { @apply bg-red-500; }
+  .action-marker.all-in { @apply bg-purple-500; }
+
+  /* Stage markers for poker timeline */
+  .stage-markers {
+    @apply flex justify-between mb-2 text-xs text-poker-text-secondary;
+  }
+
+  .stage-marker {
+    @apply px-2 py-1 rounded bg-poker-bg-dark border border-poker-border-default;
+    @apply transition-all duration-200;
+  }
+
+  .stage-marker.active {
+    @apply bg-poker-secondary text-poker-bg-dark border-poker-secondary;
+  }
+
+  /* Profit/Loss indicators */
+  .profit-indicator {
+    @apply px-2 py-1 rounded-md text-sm font-mono font-medium;
+  }
+
+  .profit-indicator.positive {
+    @apply bg-green-900 text-green-300 border border-green-700;
+  }
+
+  .profit-indicator.negative {
+    @apply bg-red-900 text-red-300 border border-red-700;
+  }
+
+  .profit-indicator.neutral {
+    @apply bg-gray-900 text-gray-300 border border-gray-700;
+  }
+
+  /* Hand strength indicators */
+  .hand-strength {
+    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .hand-strength.premium {
+    @apply bg-yellow-900 text-yellow-300 border border-yellow-700;
+  }
+
+  .hand-strength.strong {
+    @apply bg-green-900 text-green-300 border border-green-700;
+  }
+
+  .hand-strength.playable {
+    @apply bg-blue-900 text-blue-300 border border-blue-700;
+  }
+
+  .hand-strength.marginal {
+    @apply bg-orange-900 text-orange-300 border border-orange-700;
+  }
+
+  .hand-strength.weak {
+    @apply bg-red-900 text-red-300 border border-red-700;
+  }
+
+  /* Analysis panel styling */
+  .analysis-panel {
+    @apply bg-poker-bg-card border-l border-poker-border-default h-full overflow-hidden;
+    @apply flex flex-col;
+  }
+
+  .analysis-tabs {
+    @apply flex border-b border-poker-border-default bg-poker-bg-elevated;
+  }
+
+  .analysis-tab {
+    @apply flex-1 px-4 py-3 text-sm font-medium text-poker-text-secondary;
+    @apply transition-all duration-200 hover:text-poker-text-primary hover:bg-poker-bg-card;
+    @apply focus:outline-none focus:ring-2 focus:ring-poker-secondary focus:ring-inset;
+  }
+
+  .analysis-tab.active {
+    @apply text-poker-secondary border-b-2 border-poker-secondary bg-poker-bg-card;
+  }
+
+  /* Loading and skeleton states */
+  .skeleton {
+    @apply animate-pulse bg-poker-border-default rounded;
+  }
+
+  .loading-spinner {
+    @apply animate-spin rounded-full border-2 border-poker-border-default border-t-poker-secondary;
+  }
+
+  /* Responsive utilities */
+  .glass-effect {
+    backdrop-filter: blur(10px);
+    background: rgba(45, 45, 45, 0.8);
+  }
+
+  /* Focus and accessibility improvements */
+  .focus-visible {
+    @apply focus:outline-none focus:ring-2 focus:ring-poker-secondary focus:ring-opacity-50;
+  }
+
+  /* Custom animations */
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  @keyframes chip-stack {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+  }
+
+  /* Safe area for mobile devices */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
   }
   
-  .poker-chip {
-    @apply rounded-full border-2 shadow-md;
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Touch optimization */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Hide scrollbar while allowing scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+    scrollbar-width: none; /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+  }
+
+  /* Mobile-specific improvements */
+  @media (max-width: 768px) {
+    body {
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .poker-table {
+      @apply rounded-2xl; /* Less rounded on mobile for better space usage */
+    }
+
+    .hand-history-card {
+      @apply p-3; /* Reduced padding on mobile */
+    }
+
+    .control-btn {
+      @apply w-12 h-12; /* Larger touch targets */
+      min-height: 44px; /* iOS recommended minimum touch target */
+    }
+
+    .play-pause-btn {
+      @apply w-14 h-14; /* Larger primary button */
+      min-height: 56px;
+    }
+
+    /* Better button touch targets */
+    button {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Prevent zoom on input focus */
+    input[type="number"] {
+      font-size: 16px;
+    }
+
+    /* Optimize scrolling */
+    .scrollable-content {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+  }
+
+  /* Landscape mobile optimizations */
+  @media (max-width: 768px) and (orientation: landscape) {
+    .mobile-header {
+      @apply py-2; /* Reduce header padding in landscape */
+    }
+    
+    .bottom-controls {
+      @apply py-2; /* Reduce bottom padding in landscape */
+    }
   }
 }

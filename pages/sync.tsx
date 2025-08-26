@@ -12,7 +12,6 @@ import { StorageManager } from '@/lib/storage/storage-manager';
 import { DataSyncManager } from '@/lib/data-sync-manager';
 
 const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
 
 interface SyncPageProps {
   storageManager: StorageManager;
@@ -233,222 +232,225 @@ export const SyncPage: React.FC<SyncPageProps> = ({
         {/* 功能标签页 */}
         <Col span={24}>
           <Card>
-            <Tabs defaultActiveKey="settings" centered={mobile}>
-              <TabPane
-                tab={
-                  <span>
-                    <SettingOutlined />
-                    {mobile ? '设置' : '同步设置'}
-                  </span>
-                }
-                key="settings"
-              >
-                <SyncSettings storageManager={storageManager} />
-              </TabPane>
+            <Tabs 
+              defaultActiveKey="settings" 
+              centered={mobile}
+              items={[
+                {
+                  key: 'settings',
+                  label: (
+                    <span>
+                      <SettingOutlined />
+                      {mobile ? '设置' : '同步设置'}
+                    </span>
+                  ),
+                  children: <SyncSettings storageManager={storageManager} />
+                },
+                {
+                  key: 'storage',
+                  label: (
+                    <span>
+                      <DatabaseOutlined />
+                      {mobile ? '存储' : '存储管理'}
+                    </span>
+                  ),
+                  children: (
+                    <Row gutter={[mobile ? 12 : 16, mobile ? 12 : 16]}>
+                      <Col xs={24} md={12}>
+                        <Card title="本地存储" size="small">
+                          <Space direction="vertical" style={{ width: '100%' }}>
+                            <div>
+                              <Text strong>已使用空间</Text>
+                              <Progress 
+                                percent={storageStats.local.percentage} 
+                                format={() => `${formatBytes(storageStats.local.used)}`}
+                              />
+                            </div>
+                            <div>
+                              <Text strong>存储分布</Text>
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>手牌历史</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>45%</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>训练场景</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>30%</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>统计数据</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>15%</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>用户数据</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>10%</Text>
+                                </div>
+                              </div>
+                            </div>
+                            <Button type="primary" icon={<ReloadOutlined />} block={mobile}>
+                              清理缓存
+                            </Button>
+                          </Space>
+                        </Card>
+                      </Col>
 
-              <TabPane
-                tab={
-                  <span>
-                    <DatabaseOutlined />
-                    {mobile ? '存储' : '存储管理'}
-                  </span>
-                }
-                key="storage"
-              >
-                <Row gutter={[mobile ? 12 : 16, mobile ? 12 : 16]}>
-                  <Col xs={24} md={12}>
-                    <Card title="本地存储" size="small">
+                      <Col xs={24} md={12}>
+                        <Card title="云端存储" size="small">
+                          <Space direction="vertical" style={{ width: '100%' }}>
+                            <div>
+                              <Text strong>云端容量</Text>
+                              <Progress 
+                                percent={storageStats.cloud.percentage} 
+                                format={() => `${formatBytes(storageStats.cloud.used)}`}
+                              />
+                            </div>
+                            <div>
+                              <Text strong>同步统计</Text>
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>已同步项目</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.syncedItems}</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>待同步项目</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.pendingChanges}</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>同步冲突</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.conflicts}</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>同步错误</Text>
+                                  <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.errors}</Text>
+                                </div>
+                              </div>
+                            </div>
+                            <Button type="primary" icon={<CloudDownloadOutlined />} block={mobile}>
+                              备份数据
+                            </Button>
+                          </Space>
+                        </Card>
+                      </Col>
+                    </Row>
+                  )
+                },
+                {
+                  key: 'devices',
+                  label: (
+                    <span>
+                      <MobileOutlined />
+                      {mobile ? '设备' : '设备管理'}
+                    </span>
+                  ),
+                  children: (
+                    <Card title="已连接设备">
+                      <Row gutter={[mobile ? 12 : 16, mobile ? 12 : 16]}>
+                        <Col xs={24} sm={8}>
+                          <Card size="small" bordered={false}>
+                            <div style={{ textAlign: 'center' }}>
+                              <MobileOutlined style={{ fontSize: mobile ? 36 : 48, color: '#1890ff' }} />
+                              <div style={{ marginTop: 8 }}>
+                                <Text strong style={{ fontSize: mobile ? 14 : 16 }}>当前设备</Text>
+                                <br />
+                                <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>Chrome / Windows</Text>
+                              </div>
+                              <Badge status="success" text="在线" style={{ marginTop: 8 }} />
+                            </div>
+                          </Card>
+                        </Col>
+                        
+                        <Col xs={24} sm={8}>
+                          <Card size="small" bordered={false}>
+                            <div style={{ textAlign: 'center' }}>
+                              <MobileOutlined style={{ fontSize: mobile ? 36 : 48, color: '#52c41a' }} />
+                              <div style={{ marginTop: 8 }}>
+                                <Text strong style={{ fontSize: mobile ? 14 : 16 }}>iPhone 13</Text>
+                                <br />
+                                <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>Safari / iOS</Text>
+                              </div>
+                              <Badge status="default" text="离线" style={{ marginTop: 8 }} />
+                            </div>
+                          </Card>
+                        </Col>
+                        
+                        <Col xs={24} sm={8}>
+                          <Card size="small" bordered={false}>
+                            <div style={{ textAlign: 'center' }}>
+                              <MobileOutlined style={{ fontSize: mobile ? 36 : 48, color: '#722ed1' }} />
+                              <div style={{ marginTop: 8 }}>
+                                <Text strong style={{ fontSize: mobile ? 14 : 16 }}>iPad Pro</Text>
+                                <br />
+                                <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>Safari / iPadOS</Text>
+                              </div>
+                              <Badge status="processing" text="同步中" style={{ marginTop: 8 }} />
+                            </div>
+                          </Card>
+                        </Col>
+                      </Row>
+                    </Card>
+                  )
+                },
+                {
+                  key: 'security',
+                  label: (
+                    <span>
+                      <SafetyOutlined />
+                      {mobile ? '安全' : '安全设置'}
+                    </span>
+                  ),
+                  children: (
+                    <Card title="数据安全">
                       <Space direction="vertical" style={{ width: '100%' }}>
+                        <Alert
+                          message="数据加密"
+                          description={mobile ? "所有同步数据均采用AES-256加密传输" : "所有同步数据均采用AES-256加密传输，确保您的隐私安全"}
+                          type="info"
+                          showIcon
+                        />
+                        
+                        <Alert
+                          message="访问控制"
+                          description={mobile ? "只有经过身份验证的设备才能访问" : "只有经过身份验证的设备才能访问您的云端数据"}
+                          type="success"
+                          showIcon
+                        />
+                        
+                        <Alert
+                          message="数据备份"
+                          description={mobile ? "云端数据会自动进行多重备份" : "云端数据会自动进行多重备份，防止数据丢失"}
+                          type="warning"
+                          showIcon
+                        />
+                        
+                        <Divider />
+                        
                         <div>
-                          <Text strong>已使用空间</Text>
-                          <Progress 
-                            percent={storageStats.local.percentage} 
-                            format={() => `${formatBytes(storageStats.local.used)}`}
-                          />
-                        </div>
-                        <div>
-                          <Text strong>存储分布</Text>
+                          <Text strong>数据保留策略</Text>
                           <div style={{ marginTop: 8 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                               <Text style={{ fontSize: mobile ? 12 : 14 }}>手牌历史</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>45%</Text>
+                              <Text style={{ fontSize: mobile ? 12 : 14 }}>保留1年</Text>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>训练场景</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>30%</Text>
+                              <Text style={{ fontSize: mobile ? 12 : 14 }}>训练记录</Text>
+                              <Text style={{ fontSize: mobile ? 12 : 14 }}>永久保留</Text>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                               <Text style={{ fontSize: mobile ? 12 : 14 }}>统计数据</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>15%</Text>
+                              <Text style={{ fontSize: mobile ? 12 : 14 }}>保留2年</Text>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>用户数据</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>10%</Text>
+                              <Text style={{ fontSize: mobile ? 12 : 14 }}>临时文件</Text>
+                              <Text style={{ fontSize: mobile ? 12 : 14 }}>30天自动清理</Text>
                             </div>
                           </div>
                         </div>
-                        <Button type="primary" icon={<ReloadOutlined />} block={mobile}>
-                          清理缓存
-                        </Button>
                       </Space>
                     </Card>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Card title="云端存储" size="small">
-                      <Space direction="vertical" style={{ width: '100%' }}>
-                        <div>
-                          <Text strong>云端容量</Text>
-                          <Progress 
-                            percent={storageStats.cloud.percentage} 
-                            format={() => `${formatBytes(storageStats.cloud.used)}`}
-                          />
-                        </div>
-                        <div>
-                          <Text strong>同步统计</Text>
-                          <div style={{ marginTop: 8 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>已同步项目</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.syncedItems}</Text>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>待同步项目</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.pendingChanges}</Text>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>同步冲突</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.conflicts}</Text>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>同步错误</Text>
-                              <Text style={{ fontSize: mobile ? 12 : 14 }}>{syncStats.errors}</Text>
-                            </div>
-                          </div>
-                        </div>
-                        <Button type="primary" icon={<CloudDownloadOutlined />} block={mobile}>
-                          备份数据
-                        </Button>
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
-              </TabPane>
-
-              <TabPane
-                tab={
-                  <span>
-                    <MobileOutlined />
-                    {mobile ? '设备' : '设备管理'}
-                  </span>
+                  )
                 }
-                key="devices"
-              >
-                <Card title="已连接设备">
-                  <Row gutter={[mobile ? 12 : 16, mobile ? 12 : 16]}>
-                    <Col xs={24} sm={8}>
-                      <Card size="small" bordered={false}>
-                        <div style={{ textAlign: 'center' }}>
-                          <MobileOutlined style={{ fontSize: mobile ? 36 : 48, color: '#1890ff' }} />
-                          <div style={{ marginTop: 8 }}>
-                            <Text strong style={{ fontSize: mobile ? 14 : 16 }}>当前设备</Text>
-                            <br />
-                            <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>Chrome / Windows</Text>
-                          </div>
-                          <Badge status="success" text="在线" style={{ marginTop: 8 }} />
-                        </div>
-                      </Card>
-                    </Col>
-                    
-                    <Col xs={24} sm={8}>
-                      <Card size="small" bordered={false}>
-                        <div style={{ textAlign: 'center' }}>
-                          <MobileOutlined style={{ fontSize: mobile ? 36 : 48, color: '#52c41a' }} />
-                          <div style={{ marginTop: 8 }}>
-                            <Text strong style={{ fontSize: mobile ? 14 : 16 }}>iPhone 13</Text>
-                            <br />
-                            <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>Safari / iOS</Text>
-                          </div>
-                          <Badge status="default" text="离线" style={{ marginTop: 8 }} />
-                        </div>
-                      </Card>
-                    </Col>
-                    
-                    <Col xs={24} sm={8}>
-                      <Card size="small" bordered={false}>
-                        <div style={{ textAlign: 'center' }}>
-                          <MobileOutlined style={{ fontSize: mobile ? 36 : 48, color: '#722ed1' }} />
-                          <div style={{ marginTop: 8 }}>
-                            <Text strong style={{ fontSize: mobile ? 14 : 16 }}>iPad Pro</Text>
-                            <br />
-                            <Text type="secondary" style={{ fontSize: mobile ? 12 : 14 }}>Safari / iPadOS</Text>
-                          </div>
-                          <Badge status="processing" text="同步中" style={{ marginTop: 8 }} />
-                        </div>
-                      </Card>
-                    </Col>
-                  </Row>
-                </Card>
-              </TabPane>
-
-              <TabPane
-                tab={
-                  <span>
-                    <SafetyOutlined />
-                    {mobile ? '安全' : '安全设置'}
-                  </span>
-                }
-                key="security"
-              >
-                <Card title="数据安全">
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Alert
-                      message="数据加密"
-                      description={mobile ? "所有同步数据均采用AES-256加密传输" : "所有同步数据均采用AES-256加密传输，确保您的隐私安全"}
-                      type="info"
-                      showIcon
-                    />
-                    
-                    <Alert
-                      message="访问控制"
-                      description={mobile ? "只有经过身份验证的设备才能访问" : "只有经过身份验证的设备才能访问您的云端数据"}
-                      type="success"
-                      showIcon
-                    />
-                    
-                    <Alert
-                      message="数据备份"
-                      description={mobile ? "云端数据会自动进行多重备份" : "云端数据会自动进行多重备份，防止数据丢失"}
-                      type="warning"
-                      showIcon
-                    />
-                    
-                    <Divider />
-                    
-                    <div>
-                      <Text strong>数据保留策略</Text>
-                      <div style={{ marginTop: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>手牌历史</Text>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>保留1年</Text>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>训练记录</Text>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>永久保留</Text>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>统计数据</Text>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>保留2年</Text>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>临时文件</Text>
-                          <Text style={{ fontSize: mobile ? 12 : 14 }}>30天自动清理</Text>
-                        </div>
-                      </div>
-                    </div>
-                  </Space>
-                </Card>
-              </TabPane>
-            </Tabs>
+              ]}
+            />
           </Card>
         </Col>
       </Row>

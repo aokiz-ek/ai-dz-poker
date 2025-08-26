@@ -1,12 +1,17 @@
-import React from 'react';
-import { Space, Button, Select, Tooltip } from 'antd';
+import React, { useState } from 'react';
+import { Space, Button, Select, Tooltip, Slider, Popover } from 'antd';
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
   StepBackwardOutlined,
   StepForwardOutlined,
   FastBackwardOutlined,
-  FastForwardOutlined
+  FastForwardOutlined,
+  SettingOutlined,
+  SoundOutlined,
+  MutedOutlined,
+  RedoOutlined,
+  UndoOutlined
 } from '@ant-design/icons';
 
 const { Option } = Select;
@@ -16,140 +21,284 @@ interface ReplayControlsProps {
   canStepBackward: boolean;
   canStepForward: boolean;
   playbackSpeed: number;
+  volume: number;
+  isMuted: boolean;
+  loop: boolean;
+  autoAdvance: boolean;
   onPlay: () => void;
   onPause: () => void;
   onStepBackward: () => void;
   onStepForward: () => void;
+  onJumpToStart: () => void;
+  onJumpToEnd: () => void;
   onSpeedChange: (speed: number) => void;
+  onVolumeChange?: (volume: number) => void;
+  onToggleMute?: () => void;
+  onToggleLoop?: () => void;
+  onToggleAutoAdvance?: () => void;
 }
 
 /**
- * 回放控制器组件
- * 播放、暂停、单步控制、速度调节
+ * 专业回放控制器组件
+ * 类似专业视频播放器的控制界面
  */
 export const ReplayControls: React.FC<ReplayControlsProps> = ({
   isPlaying,
   canStepBackward,
   canStepForward,
   playbackSpeed,
+  volume = 1,
+  isMuted = false,
+  loop = false,
+  autoAdvance = true,
   onPlay,
   onPause,
   onStepBackward,
   onStepForward,
-  onSpeedChange
+  onJumpToStart,
+  onJumpToEnd,
+  onSpeedChange,
+  onVolumeChange,
+  onToggleMute,
+  onToggleLoop,
+  onToggleAutoAdvance
 }) => {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+
   const speedOptions = [
-    { value: 0.25, label: '0.25x' },
-    { value: 0.5, label: '0.5x' },
-    { value: 1, label: '1x' },
-    { value: 1.5, label: '1.5x' },
-    { value: 2, label: '2x' },
-    { value: 4, label: '4x' }
+    { value: 0.25, label: '0.25x', description: '慢速回放' },
+    { value: 0.5, label: '0.5x', description: '半速回放' },
+    { value: 0.75, label: '0.75x', description: '3/4速度' },
+    { value: 1, label: '1x', description: '正常速度' },
+    { value: 1.25, label: '1.25x', description: '1.25倍速' },
+    { value: 1.5, label: '1.5x', description: '1.5倍速' },
+    { value: 2, label: '2x', description: '2倍速' },
+    { value: 3, label: '3x', description: '3倍速' },
+    { value: 4, label: '4x', description: '最高速度' }
   ];
 
-  return (
-    <div className="replay-controls" style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center',
-      padding: '16px 0',
-      borderTop: '1px solid #f0f0f0'
-    }}>
-      <Space size="middle">
-        {/* 后退到开始 */}
-        <Tooltip title="回到开始">
+  const getSpeedIcon = (speed: number) => {
+    if (speed < 1) return '🐌';
+    if (speed === 1) return '▶️';
+    if (speed <= 2) return '⚡';
+    return '🚀';
+  };
+
+  // Settings Panel Content
+  const settingsContent = (
+    <div className="w-64 p-4 space-y-4">
+      <div>
+        <h4 className="text-poker-text-primary text-sm font-medium mb-2">回放设置</h4>
+        
+        {/* Auto Advance Toggle */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-poker-text-secondary text-sm">自动前进</span>
           <Button
             type="text"
-            size="large"
-            icon={<FastBackwardOutlined />}
-            disabled={!canStepBackward}
-            onClick={() => {
-              // 这里可以添加回到开始的逻辑
-              onStepBackward();
-            }}
-          />
-        </Tooltip>
+            size="small"
+            className={autoAdvance ? 'text-poker-secondary' : 'text-poker-text-secondary'}
+            onClick={onToggleAutoAdvance}
+          >
+            {autoAdvance ? '开启' : '关闭'}
+          </Button>
+        </div>
 
-        {/* 单步后退 */}
-        <Tooltip title="上一步">
+        {/* Loop Toggle */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-poker-text-secondary text-sm">循环播放</span>
           <Button
             type="text"
-            size="large"
-            icon={<StepBackwardOutlined />}
-            disabled={!canStepBackward}
-            onClick={onStepBackward}
-          />
-        </Tooltip>
+            size="small"
+            className={loop ? 'text-poker-secondary' : 'text-poker-text-secondary'}
+            onClick={onToggleLoop}
+          >
+            {loop ? '开启' : '关闭'}
+          </Button>
+        </div>
 
-        {/* 播放/暂停 */}
-        <Tooltip title={isPlaying ? "暂停" : "播放"}>
-          <Button
-            type="primary"
-            size="large"
-            shape="circle"
-            icon={isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-            onClick={isPlaying ? onPause : onPlay}
-            disabled={!canStepForward && !isPlaying}
-            style={{ 
-              width: 48, 
-              height: 48,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          />
-        </Tooltip>
-
-        {/* 单步前进 */}
-        <Tooltip title="下一步">
-          <Button
-            type="text"
-            size="large"
-            icon={<StepForwardOutlined />}
-            disabled={!canStepForward}
-            onClick={onStepForward}
-          />
-        </Tooltip>
-
-        {/* 快进到结束 */}
-        <Tooltip title="跳到结束">
-          <Button
-            type="text"
-            size="large"
-            icon={<FastForwardOutlined />}
-            disabled={!canStepForward}
-            onClick={() => {
-              // 这里可以添加跳到结束的逻辑
-              onStepForward();
-            }}
-          />
-        </Tooltip>
-
-        {/* 分隔线 */}
-        <div style={{ 
-          width: 1, 
-          height: 24, 
-          backgroundColor: '#d9d9d9',
-          margin: '0 8px'
-        }} />
-
-        {/* 播放速度选择 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, color: '#666' }}>速度:</span>
+        {/* Speed Selection */}
+        <div className="mb-3">
+          <span className="text-poker-text-secondary text-sm block mb-2">播放速度</span>
           <Select
             value={playbackSpeed}
             onChange={onSpeedChange}
-            style={{ width: 80 }}
+            className="w-full"
             size="small"
           >
             {speedOptions.map(option => (
               <Option key={option.value} value={option.value}>
-                {option.label}
+                <div className="flex items-center justify-between">
+                  <span>{getSpeedIcon(option.value)} {option.label}</span>
+                  <span className="text-xs text-gray-400">{option.description}</span>
+                </div>
               </Option>
             ))}
           </Select>
         </div>
-      </Space>
+      </div>
+    </div>
+  );
+
+  // Volume Control Content
+  const volumeContent = (
+    <div className="w-32 p-3">
+      <div className="text-center mb-2 text-poker-text-secondary text-xs">
+        音量: {Math.round(volume * 100)}%
+      </div>
+      <Slider
+        vertical
+        min={0}
+        max={1}
+        step={0.1}
+        value={volume}
+        onChange={onVolumeChange}
+        className="h-20"
+      />
+    </div>
+  );
+
+  return (
+    <div className="replay-controls">
+      <div className="flex items-center justify-center space-x-3">
+        {/* Skip to Beginning */}
+        <Tooltip title="跳到开始 (Home)">
+          <button
+            className="control-btn"
+            disabled={!canStepBackward}
+            onClick={onJumpToStart}
+            aria-label="跳到开始"
+          >
+            <UndoOutlined />
+          </button>
+        </Tooltip>
+
+        {/* Step Backward */}
+        <Tooltip title="上一步 (←)">
+          <button
+            className="control-btn"
+            disabled={!canStepBackward}
+            onClick={onStepBackward}
+            aria-label="上一步"
+          >
+            <StepBackwardOutlined />
+          </button>
+        </Tooltip>
+
+        {/* Play/Pause - Main Control */}
+        <Tooltip title={isPlaying ? "暂停 (空格)" : "播放 (空格)"}>
+          <button
+            className="play-pause-btn"
+            onClick={isPlaying ? onPause : onPlay}
+            disabled={!canStepForward && !isPlaying}
+            aria-label={isPlaying ? "暂停" : "播放"}
+          >
+            {isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+          </button>
+        </Tooltip>
+
+        {/* Step Forward */}
+        <Tooltip title="下一步 (→)">
+          <button
+            className="control-btn"
+            disabled={!canStepForward}
+            onClick={onStepForward}
+            aria-label="下一步"
+          >
+            <StepForwardOutlined />
+          </button>
+        </Tooltip>
+
+        {/* Skip to End */}
+        <Tooltip title="跳到结束 (End)">
+          <button
+            className="control-btn"
+            disabled={!canStepForward}
+            onClick={onJumpToEnd}
+            aria-label="跳到结束"
+          >
+            <RedoOutlined />
+          </button>
+        </Tooltip>
+
+        {/* Separator */}
+        <div className="w-px h-6 bg-poker-border-default mx-2" />
+
+        {/* Volume Control */}
+        <Popover
+          content={volumeContent}
+          trigger="hover"
+          placement="top"
+          open={showVolumeSlider}
+          onOpenChange={setShowVolumeSlider}
+        >
+          <Tooltip title={isMuted ? "取消静音" : "静音"}>
+            <button
+              className="control-btn"
+              onClick={onToggleMute}
+              aria-label={isMuted ? "取消静音" : "静音"}
+            >
+              {isMuted ? <MutedOutlined /> : <SoundOutlined />}
+            </button>
+          </Tooltip>
+        </Popover>
+
+        {/* Speed Indicator */}
+        <div className="flex items-center space-x-2 px-3 py-1 bg-poker-bg-elevated rounded-md border border-poker-border-default">
+          <span className="text-xs text-poker-text-secondary">
+            {getSpeedIcon(playbackSpeed)}
+          </span>
+          <span className="text-sm text-poker-text-primary font-mono">
+            {playbackSpeed}x
+          </span>
+        </div>
+
+        {/* Settings */}
+        <Popover
+          content={settingsContent}
+          trigger="click"
+          placement="topRight"
+          open={showSettings}
+          onOpenChange={setShowSettings}
+          title={
+            <div className="flex items-center space-x-2">
+              <SettingOutlined />
+              <span>回放设置</span>
+            </div>
+          }
+        >
+          <Tooltip title="设置">
+            <button
+              className={`control-btn ${showSettings ? 'text-poker-secondary border-poker-secondary' : ''}`}
+              aria-label="设置"
+            >
+              <SettingOutlined />
+            </button>
+          </Tooltip>
+        </Popover>
+      </div>
+
+      {/* Status Indicators */}
+      <div className="flex items-center justify-center space-x-4 mt-2 text-xs text-poker-text-secondary">
+        {loop && (
+          <div className="flex items-center space-x-1">
+            <RedoOutlined />
+            <span>循环</span>
+          </div>
+        )}
+        {autoAdvance && (
+          <div className="flex items-center space-x-1">
+            <PlayCircleOutlined />
+            <span>自动</span>
+          </div>
+        )}
+        {isMuted && (
+          <div className="flex items-center space-x-1">
+            <MutedOutlined />
+            <span>静音</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

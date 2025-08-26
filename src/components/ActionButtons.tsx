@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ActionType } from '@/types/poker';
+import { formatStack } from '@/lib/poker-utils';
 
 interface ActionButtonsProps {
   validActions: ActionType[];
@@ -82,7 +83,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             disabled={disabled}
             className="px-4 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
           >
-            Call ${getCallAmount()}
+            Call ${formatStack(getCallAmount())}
           </button>
         )}
 
@@ -102,7 +103,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             disabled={disabled}
             className="px-4 py-3 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors col-span-2"
           >
-            All-In ${playerStack}
+            All-In ${formatStack(playerStack)}
           </button>
         )}
       </div>
@@ -123,7 +124,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             />
             <div className="text-xs text-gray-500 mt-1">
-              Min: ${minRaise} | Max: ${playerStack}
+              Min: ${formatStack(minRaise)} | Max: ${formatStack(playerStack)}
             </div>
           </div>
 
@@ -148,7 +149,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
               disabled={disabled || betAmount < minRaise}
               className="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
             >
-              {getBetButtonLabel()} ${betAmount}
+              {getBetButtonLabel()} ${formatStack(betAmount)}
             </button>
             <button
               onClick={() => setShowBetInput(false)}
@@ -162,7 +163,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
       {/* Game Info */}
       <div className="text-xs text-gray-600 mt-4 text-center">
-        Pot: ${potSize} | Current Bet: ${currentBet} | Your Stack: ${playerStack}
+        Pot: ${formatStack(potSize)} | Current Bet: ${formatStack(currentBet)} | Your Stack: ${formatStack(playerStack)}
       </div>
     </div>
   );

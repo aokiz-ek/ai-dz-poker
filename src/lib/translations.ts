@@ -22,10 +22,10 @@ export const getActionChinese = (action: ActionType): string => {
   const translations: Record<ActionType, string> = {
     'fold': '弃牌',
     'check': '过牌', 
-    'call': '跟注',
-    'bet': '下注',
+    'call': '响应',
+    'bet': '投入',
     'raise': '加注',
-    'all-in': '全押'
+    'all-in': '全投入'
   };
   return translations[action] || action;
 };
@@ -142,10 +142,10 @@ export const getScoreGradeChinese = (score: number): string => {
   return '需要改进';
 };
 
-// 筹码量级别翻译
+// 积分量级别翻译
 export const getStackSizeChinese = (stackSize: number): string => {
-  if (stackSize >= 100) return '深筹码';
-  if (stackSize >= 50) return '中等筹码';
-  if (stackSize >= 20) return '浅筹码';
-  return '极浅筹码';
+  if (stackSize >= 100) return '深资源';
+  if (stackSize >= 50) return '中等资源';
+  if (stackSize >= 20) return '浅资源';
+  return '极浅资源';
 };

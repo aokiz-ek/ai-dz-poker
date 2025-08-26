@@ -39,7 +39,7 @@ export const BEGINNER_BOB: AIPersonality = {
   postflopAggression: 30,   // 翻后稍微激进一点
   riverCallDownFreq: 40,    // 经常在河牌跟注 (好奇心强)
 
-  // 风险偏好 (新手特征：怕输钱但又好奇)
+  // 风险偏好 (新手特征：风险厌恶但又好奇)
   riskTolerance: 30,        // 低风险容忍度
   variancePreference: 25    // 不喜欢高方差
 };

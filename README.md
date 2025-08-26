@@ -1,4 +1,4 @@
-# 🎯 AI DZ扑克 GTO 训练系统 | AI Texas Hold'em GTO Training System
+# 🎯 AI 策略决策 GTO 训练系统 | AI Strategic Decision GTO Training System
 
 **Language / 语言**: [English](#english) | [中文](#中文)
 
@@ -13,7 +13,7 @@
 
 ## English
 
-A professional Texas Hold'em Game Theory Optimal (GTO) training platform that provides real-time strategy analysis, scenario-based training, and advanced data visualization.
+A professional Strategic Decision Game Theory Optimal (GTO) training platform that provides real-time strategy analysis, scenario-based training, and advanced data visualization.
 
 ## 🎯 Core Features
 
@@ -24,7 +24,7 @@ A professional Texas Hold'em Game Theory Optimal (GTO) training platform that pr
 - **Data Export**: Support for CSV format strategy data export
 
 ### 2. Real-time Training Mode
-- **Interactive Poker Table**: Complete poker game interface
+- **Interactive Training Table**: Complete strategic decision game interface
 - **Instant Feedback**: Get GTO analysis and scoring after each decision
 - **Positional Strategy**: Professional strategy recommendations for different positions (UTG, CO, BTN, SB, BB)
 - **Progress Tracking**: Real-time statistics for average score and hand count
@@ -45,7 +45,7 @@ A professional Texas Hold'em Game Theory Optimal (GTO) training platform that pr
 
 ### Core Modules
 
-#### 1. Game Engine (`src/lib/poker-engine.ts`)
+#### 1. Game Engine (`src/lib/strategy-engine.ts`)
 ```typescript
 class PokerEngine {
   // Complete poker rules implementation
@@ -206,7 +206,7 @@ Issues and Pull Requests are welcome to improve the project!
 
 ## 中文
 
-专业的DZ扑克游戏理论最优策略(GTO)训练平台，提供实时策略分析、场景化训练和专业数据可视化。
+专业的策略决策游戏理论最优策略(GTO)训练平台，提供实时策略分析、场景化训练和专业数据可视化。
 
 ## 🎯 核心功能
 
@@ -217,7 +217,7 @@ Issues and Pull Requests are welcome to improve the project!
 - **数据导出**: 支持 CSV 格式导出策略数据
 
 ### 2. 实时训练模式
-- **交互式牌桌**: 完整的扑克游戏界面
+- **交互式训练界面**: 完整的策略决策游戏界面
 - **即时反馈**: 每次决策后获得 GTO 分析和评分
 - **位置策略**: 针对不同位置（UTG, CO, BTN, SB, BB）的专业策略建议
 - **进度跟踪**: 实时统计平均得分和手数
@@ -238,14 +238,14 @@ Issues and Pull Requests are welcome to improve the project!
 
 ### 核心模块
 
-#### 1. 游戏引擎 (`src/lib/poker-engine.ts`)
+#### 1. 策略引擎 (`src/lib/strategy-engine.ts`)
 ```typescript
 class PokerEngine {
-  // 完整的扑克规则实现
+  // 完整的策略决策规则实现
   createDeck(): Card[]           // 洗牌发牌
   processAction(): boolean       // 处理玩家行动
   dealCommunityCards(): void     // 发放公共牌
-  isBettingRoundComplete(): boolean // 判断下注轮结束
+  isBettingRoundComplete(): boolean // 判断决策轮结束
 }
 ```
 
@@ -315,7 +315,7 @@ npm start
 ## 📊 训练场景详解
 
 ### 初级场景
-1. **Button vs Big Blind (Deep Stack)**: 深筹码按钮位训练
+1. **Button vs Big Blind (Deep Stack)**: 深资源按钮位训练
 2. **Under The Gun (6-max)**: UTG 位置紧手范围练习
 
 ### 中级场景
@@ -328,8 +328,8 @@ npm start
 
 ## 🎨 界面特色
 
-### 专业牌桌设计
-- 真实感牌桌布局
+### 专业训练界面设计
+- 真实感训练界面布局
 - 流畅的动画效果
 - 直观的信息展示
 

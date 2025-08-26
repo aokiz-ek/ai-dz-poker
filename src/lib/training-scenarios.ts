@@ -22,14 +22,14 @@ export class TrainingScenarioManager {
   private static scenarios: TrainingScenario[] = [
     {
       id: 'btn-vs-bb-deep',
-      name: '按钮位对大盲位(深筹码)',
-      description: '深筹码按钮位对大盲位的经典对抗场景，练习位置优势的利用',
+      name: '按钮位对大盲位(深资源)',
+      description: '深资源按钮位对大盲位的经典对抗场景，练习位置优势的利用',
       position: 'BTN',
       stackSizes: { player: 10000, opponent: 10000 },
       blinds: { small: 25, big: 50 },
       difficulty: 'beginner',
       focusArea: 'preflop',
-      tags: ['位置优势', '深筹码', '单挑']
+      tags: ['位置优势', '深资源', '单挑']
     },
     {
       id: 'utg-6max',
@@ -84,7 +84,7 @@ export class TrainingScenarioManager {
       blinds: { small: 100, big: 200 },
       difficulty: 'advanced',
       focusArea: 'preflop',
-      tags: ['锦标赛', '泡沫期', '短筹码']
+      tags: ['锦标赛', '泡沫期', '短资源']
     }
   ];
 
@@ -189,7 +189,7 @@ export class TrainingScenarioManager {
       'tournament-bubble': [
         '理解锦标赛的特殊考量',
         '学习 ICM 压力下的调整',
-        '掌握短筹码的生存策略',
+        '掌握短资源的生存策略',
         '理解风险与收益的平衡'
       ]
     };

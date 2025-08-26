@@ -467,223 +467,736 @@ export abstract class CloudAdapter implements IDataProvider {
 // =================== 具体云端服务实现 ===================
 
 export class FirebaseAdapter extends CloudAdapter {
-  private firestore: any; // Firebase Firestore 实例
+  private firestore: any;
+  private auth: any;
+  private app: any;
 
   async initialize(): Promise<void> {
-    // 这里需要初始化 Firebase
-    // import { initializeApp } from 'firebase/app';
-    // import { getFirestore } from 'firebase/firestore';
+    try {
+      // 动态导入 Firebase SDK
+      const { initializeApp } = await import('firebase/app');
+      const { getFirestore, connectFirestoreEmulator } = await import('firebase/firestore');
+      const { getAuth, connectAuthEmulator } = await import('firebase/auth');
+
+      // Firebase 配置
+      const firebaseConfig = {
+        apiKey: this.config.apiKey,
+        authDomain: `${this.config.projectId}.firebaseapp.com`,
+        projectId: this.config.projectId,
+        storageBucket: `${this.config.projectId}.appspot.com`,
+        messagingSenderId: "123456789012",
+        appId: "1:123456789012:web:abcdef123456"
+      };
+
+      // 初始化 Firebase
+      this.app = initializeApp(firebaseConfig);
+      this.firestore = getFirestore(this.app);
+      this.auth = getAuth(this.app);
+
+      // 开发环境使用模拟器
+      if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+        try {
+          connectFirestoreEmulator(this.firestore, 'localhost', 8080);
+          connectAuthEmulator(this.auth, 'http://localhost:9099');
+        } catch (error) {
+          // 忽略重复连接错误
+          console.warn('Firebase emulator connection error (may be already connected):', error);
+        }
+      }
+
+      console.log('Firebase initialized successfully');
+    } catch (error) {
+      console.error('Firebase initialization failed:', error);
+      throw error;
+    }
   }
 
   async isAvailable(): Promise<boolean> {
+    if (!this.firestore) return false;
+
     try {
-      await this.firestore.collection('test').doc('availability').get();
-      return true;
-    } catch {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const testDoc = await getDoc(doc(this.firestore, 'test', 'availability'));
+      return true; // 如果能执行到这里说明连接正常
+    } catch (error) {
+      console.warn('Firebase availability check failed:', error);
       return false;
     }
   }
 
   async authenticate(token: string): Promise<boolean> {
-    // Firebase 认证逻辑
-    return true;
+    try {
+      const { signInWithCustomToken } = await import('firebase/auth');
+      await signInWithCustomToken(this.auth, token);
+      return true;
+    } catch (error) {
+      console.error('Firebase authentication failed:', error);
+      return false;
+    }
   }
 
   async getRemoteChanges(entityType: string, since: number): Promise<RemoteChange[]> {
-    // 查询指定时间后的变更
-    return [];
+    try {
+      const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore');
+      
+      const changesQuery = query(
+        collection(this.firestore, 'changes'),
+        where('entityType', '==', entityType),
+        where('timestamp', '>', since),
+        orderBy('timestamp', 'asc')
+      );
+
+      const snapshot = await getDocs(changesQuery);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as RemoteChange));
+    } catch (error) {
+      console.error('Failed to get remote changes:', error);
+      return [];
+    }
   }
 
   async getChecksums(): Promise<Record<string, string>> {
-    return {};
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const checksumDoc = await getDoc(doc(this.firestore, 'metadata', 'checksums'));
+      
+      if (checksumDoc.exists()) {
+        return checksumDoc.data().checksums || {};
+      }
+      return {};
+    } catch (error) {
+      console.error('Failed to get checksums:', error);
+      return {};
+    }
   }
 
   protected async cloudSet(key: string, data: any): Promise<void> {
     await this.retryOperation(async () => {
-      await this.firestore.collection('data').doc(key).set(data);
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+      await setDoc(doc(this.firestore, 'data', key), {
+        ...data,
+        updatedAt: serverTimestamp(),
+        deviceId: this.deviceId
+      });
     });
   }
 
   protected async cloudGet<T>(key: string): Promise<T | null> {
-    const doc = await this.retryOperation(async () => {
-      return await this.firestore.collection('data').doc(key).get();
+    const docSnapshot = await this.retryOperation(async () => {
+      const { doc, getDoc } = await import('firebase/firestore');
+      return await getDoc(doc(this.firestore, 'data', key));
     });
     
-    return doc.exists ? doc.data() as T : null;
+    if (docSnapshot.exists()) {
+      const data = docSnapshot.data();
+      // 移除 Firebase 元数据
+      const { updatedAt, deviceId, ...cleanData } = data;
+      return cleanData as T;
+    }
+    
+    return null;
   }
 
   protected async cloudDelete(key: string): Promise<void> {
     await this.retryOperation(async () => {
-      await this.firestore.collection('data').doc(key).delete();
+      const { doc, deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(this.firestore, 'data', key));
     });
   }
 
   protected async cloudHas(key: string): Promise<boolean> {
-    const doc = await this.firestore.collection('data').doc(key).get();
-    return doc.exists;
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const docSnapshot = await getDoc(doc(this.firestore, 'data', key));
+      return docSnapshot.exists();
+    } catch {
+      return false;
+    }
   }
 
   protected async cloudKeys(prefix?: string): Promise<string[]> {
-    // Firebase 不支持直接查询所有键，需要维护一个索引
-    return [];
+    try {
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      
+      let q = collection(this.firestore, 'data');
+      if (prefix) {
+        // Firebase 需要使用范围查询来模拟前缀匹配
+        q = query(
+          collection(this.firestore, 'data'),
+          where('__name__', '>=', prefix),
+          where('__name__', '<', prefix + '\uf8ff')
+        );
+      }
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.id);
+    } catch (error) {
+      console.error('Failed to get keys:', error);
+      return [];
+    }
   }
 
-  protected async cloudQuery<T>(collection: string, options: QueryOptions): Promise<QueryResult<T>> {
-    // 实现 Firestore 查询
-    return { data: [], total: 0, hasMore: false };
+  protected async cloudQuery<T>(collectionName: string, options: QueryOptions): Promise<QueryResult<T>> {
+    try {
+      const { collection, query, where, orderBy, limit, startAfter, getDocs } = await import('firebase/firestore');
+      
+      let q = collection(this.firestore, collectionName);
+      const constraints = [];
+
+      // 应用过滤条件
+      if (options.filters) {
+        Object.entries(options.filters).forEach(([field, value]) => {
+          constraints.push(where(field, '==', value));
+        });
+      }
+
+      // 应用排序
+      if (options.sortBy) {
+        constraints.push(orderBy(options.sortBy, options.sortOrder === 'desc' ? 'desc' : 'asc'));
+      }
+
+      // 应用分页
+      if (options.limit) {
+        constraints.push(limit(options.limit));
+      }
+
+      if (constraints.length > 0) {
+        q = query(q, ...constraints);
+      }
+
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as T[];
+
+      return {
+        data,
+        total: data.length, // Firebase 不支持 count，这里返回当前批次的数量
+        hasMore: options.limit ? data.length === options.limit : false
+      };
+    } catch (error) {
+      console.error('Firebase query failed:', error);
+      return { data: [], total: 0, hasMore: false };
+    }
   }
 
   protected async cloudBatchSet(operations: { key: string; data: any }[]): Promise<void> {
-    const batch = this.firestore.batch();
-    operations.forEach(op => {
-      const ref = this.firestore.collection('data').doc(op.key);
-      batch.set(ref, op.data);
+    await this.retryOperation(async () => {
+      const { writeBatch, doc, serverTimestamp } = await import('firebase/firestore');
+      
+      const batch = writeBatch(this.firestore);
+      operations.forEach(op => {
+        const ref = doc(this.firestore, 'data', op.key);
+        batch.set(ref, {
+          ...op.data,
+          updatedAt: serverTimestamp(),
+          deviceId: this.deviceId
+        });
+      });
+      
+      await batch.commit();
     });
-    await batch.commit();
+  }
+
+  // Firebase 特有方法
+
+  /**
+   * 监听实时数据变更
+   */
+  onRealtimeChanges(callback: (changes: RemoteChange[]) => void): () => void {
+    let unsubscribe: () => void = () => {};
+
+    (async () => {
+      try {
+        const { collection, onSnapshot, query, orderBy } = await import('firebase/firestore');
+        
+        const changesQuery = query(
+          collection(this.firestore, 'changes'),
+          orderBy('timestamp', 'desc')
+        );
+
+        unsubscribe = onSnapshot(changesQuery, (snapshot) => {
+          const changes = snapshot.docChanges().map(change => ({
+            id: change.doc.id,
+            type: change.type === 'added' ? 'create' : change.type === 'modified' ? 'update' : 'delete',
+            ...change.doc.data()
+          } as RemoteChange));
+
+          if (changes.length > 0) {
+            callback(changes);
+          }
+        });
+      } catch (error) {
+        console.error('Failed to setup realtime listener:', error);
+      }
+    })();
+
+    return unsubscribe;
+  }
+
+  /**
+   * 记录数据变更历史
+   */
+  private async recordChange(type: 'create' | 'update' | 'delete', entityType: string, entityId: string, data?: any): Promise<void> {
+    try {
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+      
+      await addDoc(collection(this.firestore, 'changes'), {
+        type,
+        entityType,
+        entityId,
+        data,
+        timestamp: serverTimestamp(),
+        deviceId: this.deviceId
+      });
+    } catch (error) {
+      console.warn('Failed to record change:', error);
+    }
+  }
+
+  // 重写方法以记录变更历史
+  async saveHandHistory(handHistory: HandHistory): Promise<void> {
+    await super.saveHandHistory(handHistory);
+    await this.recordChange('create', 'handHistory', handHistory.id, handHistory);
+  }
+
+  async updatePlayerStats(stats: PlayerStats): Promise<void> {
+    await super.updatePlayerStats(stats);
+    await this.recordChange('update', 'playerStats', stats.playerId, stats);
   }
 }
 
 export class SupabaseAdapter extends CloudAdapter {
-  private supabase: any; // Supabase 客户端实例
+  private supabase: any;
+  private realtimeSubscription: any = null;
 
   async initialize(): Promise<void> {
-    // 这里需要初始化 Supabase
-    // import { createClient } from '@supabase/supabase-js';
+    try {
+      // 动态导入 Supabase SDK
+      const { createClient } = await import('@supabase/supabase-js');
+
+      // 创建 Supabase 客户端
+      this.supabase = createClient(
+        this.config.baseUrl || `https://${this.config.projectId}.supabase.co`,
+        this.config.apiKey,
+        {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: false
+          },
+          realtime: {
+            params: {
+              eventsPerSecond: 2
+            }
+          }
+        }
+      );
+
+      console.log('Supabase initialized successfully');
+    } catch (error) {
+      console.error('Supabase initialization failed:', error);
+      throw error;
+    }
   }
 
   async isAvailable(): Promise<boolean> {
     try {
-      const { data, error } = await this.supabase.from('test').select('id').limit(1);
+      // 尝试查询一个简单的测试表或执行基本的健康检查
+      const { data, error } = await this.supabase
+        .from('data')
+        .select('key')
+        .limit(1);
+        
       return !error;
-    } catch {
+    } catch (error) {
+      console.warn('Supabase availability check failed:', error);
       return false;
     }
   }
 
   async authenticate(token: string): Promise<boolean> {
-    const { error } = await this.supabase.auth.signInWithToken({ token });
-    return !error;
+    try {
+      const { data, error } = await this.supabase.auth.setSession({
+        access_token: token,
+        refresh_token: ''
+      });
+      
+      if (error) {
+        console.error('Supabase authentication failed:', error);
+        return false;
+      }
+      
+      return !!data.session;
+    } catch (error) {
+      console.error('Supabase authentication error:', error);
+      return false;
+    }
   }
 
   async getRemoteChanges(entityType: string, since: number): Promise<RemoteChange[]> {
-    const { data, error } = await this.supabase
-      .from('changes')
-      .select('*')
-      .gt('timestamp', since)
-      .eq('entity_type', entityType);
+    try {
+      const { data, error } = await this.supabase
+        .from('changes')
+        .select('*')
+        .gt('timestamp', since)
+        .eq('entity_type', entityType)
+        .order('timestamp', { ascending: true });
 
-    if (error) throw error;
-    return data || [];
+      if (error) {
+        console.error('Failed to get remote changes:', error);
+        return [];
+      }
+
+      return (data || []).map(item => ({
+        id: item.id,
+        type: item.type,
+        entity: item.entity_type,
+        entityId: item.entity_id,
+        data: item.data,
+        timestamp: item.timestamp,
+        deviceId: item.device_id
+      }));
+    } catch (error) {
+      console.error('Failed to get remote changes:', error);
+      return [];
+    }
   }
 
   async getChecksums(): Promise<Record<string, string>> {
-    const { data, error } = await this.supabase
-      .from('checksums')
-      .select('*')
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('metadata')
+        .select('checksums')
+        .eq('key', 'checksums')
+        .single();
 
-    if (error) throw error;
-    return data?.checksums || {};
+      if (error) {
+        console.error('Failed to get checksums:', error);
+        return {};
+      }
+
+      return data?.checksums || {};
+    } catch (error) {
+      console.error('Failed to get checksums:', error);
+      return {};
+    }
   }
 
   protected async cloudSet(key: string, data: any): Promise<void> {
-    const { error } = await this.supabase
-      .from('data')
-      .upsert({ key, data, updated_at: new Date().toISOString() });
+    await this.retryOperation(async () => {
+      const { error } = await this.supabase
+        .from('data')
+        .upsert({ 
+          key, 
+          data, 
+          updated_at: new Date().toISOString(),
+          device_id: this.deviceId
+        });
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   }
 
   protected async cloudGet<T>(key: string): Promise<T | null> {
-    const { data, error } = await this.supabase
-      .from('data')
-      .select('data')
-      .eq('key', key)
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('data')
+        .select('data')
+        .eq('key', key)
+        .single();
 
-    if (error) return null;
-    return data?.data as T;
+      if (error) return null;
+      return data?.data as T;
+    } catch {
+      return null;
+    }
   }
 
   protected async cloudDelete(key: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('data')
-      .delete()
-      .eq('key', key);
+    await this.retryOperation(async () => {
+      const { error } = await this.supabase
+        .from('data')
+        .delete()
+        .eq('key', key);
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   }
 
   protected async cloudHas(key: string): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from('data')
-      .select('key')
-      .eq('key', key)
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('data')
+        .select('key')
+        .eq('key', key)
+        .single();
 
-    return !error && !!data;
+      return !error && !!data;
+    } catch {
+      return false;
+    }
   }
 
   protected async cloudKeys(prefix?: string): Promise<string[]> {
-    let query = this.supabase.from('data').select('key');
-    
-    if (prefix) {
-      query = query.like('key', `${prefix}%`);
-    }
+    try {
+      let query = this.supabase.from('data').select('key');
+      
+      if (prefix) {
+        query = query.like('key', `${prefix}%`);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    
-    return data?.map(item => item.key) || [];
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      return (data || []).map(item => item.key);
+    } catch (error) {
+      console.error('Failed to get keys:', error);
+      return [];
+    }
   }
 
   protected async cloudQuery<T>(collection: string, options: QueryOptions): Promise<QueryResult<T>> {
-    let query = this.supabase.from(collection).select('*');
+    try {
+      let query = this.supabase.from(collection).select('*', { count: 'exact' });
 
-    // 应用过滤条件
-    if (options.filters) {
-      Object.entries(options.filters).forEach(([key, value]) => {
-        query = query.eq(key, value);
-      });
+      // 应用过滤条件
+      if (options.filters) {
+        Object.entries(options.filters).forEach(([field, value]) => {
+          if (typeof value === 'object' && value !== null) {
+            // 处理复杂查询条件
+            Object.entries(value).forEach(([operator, operatorValue]) => {
+              switch (operator) {
+                case '$gt':
+                  query = query.gt(field, operatorValue);
+                  break;
+                case '$gte':
+                  query = query.gte(field, operatorValue);
+                  break;
+                case '$lt':
+                  query = query.lt(field, operatorValue);
+                  break;
+                case '$lte':
+                  query = query.lte(field, operatorValue);
+                  break;
+                case '$ne':
+                  query = query.neq(field, operatorValue);
+                  break;
+                default:
+                  query = query.eq(field, operatorValue);
+              }
+            });
+          } else {
+            query = query.eq(field, value);
+          }
+        });
+      }
+
+      // 应用排序
+      if (options.sortBy) {
+        query = query.order(options.sortBy, {
+          ascending: options.sortOrder !== 'desc'
+        });
+      }
+
+      // 应用分页
+      if (options.limit || options.offset) {
+        const start = options.offset || 0;
+        const end = start + (options.limit || 10) - 1;
+        query = query.range(start, end);
+      }
+
+      const { data, error, count } = await query;
+      if (error) {
+        console.error('Supabase query failed:', error);
+        return { data: [], total: 0, hasMore: false };
+      }
+
+      return {
+        data: (data || []) as T[],
+        total: count || 0,
+        hasMore: options.limit ? (data || []).length === options.limit : false
+      };
+    } catch (error) {
+      console.error('Supabase query error:', error);
+      return { data: [], total: 0, hasMore: false };
     }
-
-    // 应用排序
-    if (options.sortBy) {
-      query = query.order(options.sortBy, {
-        ascending: options.sortOrder !== 'desc'
-      });
-    }
-
-    // 应用分页
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-    if (options.offset) {
-      query = query.range(options.offset, options.offset + (options.limit || 10));
-    }
-
-    const { data, error, count } = await query;
-    if (error) throw error;
-
-    return {
-      data: data as T[],
-      total: count || data.length,
-      hasMore: (options.limit || 10) === data.length
-    };
   }
 
   protected async cloudBatchSet(operations: { key: string; data: any }[]): Promise<void> {
-    const records = operations.map(op => ({
-      key: op.key,
-      data: op.data,
-      updated_at: new Date().toISOString()
-    }));
+    await this.retryOperation(async () => {
+      const records = operations.map(op => ({
+        key: op.key,
+        data: op.data,
+        updated_at: new Date().toISOString(),
+        device_id: this.deviceId
+      }));
 
-    const { error } = await this.supabase
-      .from('data')
-      .upsert(records);
+      const { error } = await this.supabase
+        .from('data')
+        .upsert(records);
 
-    if (error) throw error;
+      if (error) throw error;
+    });
+  }
+
+  // Supabase 特有方法
+
+  /**
+   * 监听实时数据变更
+   */
+  onRealtimeChanges(callback: (changes: RemoteChange[]) => void): () => void {
+    try {
+      this.realtimeSubscription = this.supabase
+        .channel('data_changes')
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'changes' 
+          }, 
+          (payload: any) => {
+            const change: RemoteChange = {
+              id: payload.new?.id || payload.old?.id,
+              type: payload.eventType === 'INSERT' ? 'create' : 
+                    payload.eventType === 'UPDATE' ? 'update' : 'delete',
+              entity: payload.new?.entity_type || payload.old?.entity_type,
+              entityId: payload.new?.entity_id || payload.old?.entity_id,
+              data: payload.new?.data || payload.old?.data,
+              timestamp: payload.new?.timestamp || payload.old?.timestamp,
+              deviceId: payload.new?.device_id || payload.old?.device_id
+            };
+            
+            callback([change]);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        if (this.realtimeSubscription) {
+          this.supabase.removeChannel(this.realtimeSubscription);
+          this.realtimeSubscription = null;
+        }
+      };
+    } catch (error) {
+      console.error('Failed to setup realtime listener:', error);
+      return () => {};
+    }
+  }
+
+  /**
+   * 记录数据变更历史
+   */
+  private async recordChange(type: 'create' | 'update' | 'delete', entityType: string, entityId: string, data?: any): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('changes')
+        .insert({
+          type,
+          entity_type: entityType,
+          entity_id: entityId,
+          data,
+          timestamp: Date.now(),
+          device_id: this.deviceId
+        });
+
+      if (error) {
+        console.warn('Failed to record change:', error);
+      }
+    } catch (error) {
+      console.warn('Failed to record change:', error);
+    }
+  }
+
+  // 重写方法以记录变更历史
+  async saveHandHistory(handHistory: HandHistory): Promise<void> {
+    await super.saveHandHistory(handHistory);
+    await this.recordChange('create', 'handHistory', handHistory.id, handHistory);
+  }
+
+  async updatePlayerStats(stats: PlayerStats): Promise<void> {
+    await super.updatePlayerStats(stats);
+    await this.recordChange('update', 'playerStats', stats.playerId, stats);
+  }
+
+  /**
+   * 批量同步操作
+   */
+  async bulkSync(operations: Array<{
+    type: 'create' | 'update' | 'delete';
+    table: string;
+    data: any;
+    id?: string;
+  }>): Promise<void> {
+    // 按表分组操作
+    const groupedOps = operations.reduce((acc, op) => {
+      if (!acc[op.table]) acc[op.table] = [];
+      acc[op.table].push(op);
+      return acc;
+    }, {} as Record<string, typeof operations>);
+
+    // 并行执行各表的批量操作
+    const promises = Object.entries(groupedOps).map(async ([table, ops]) => {
+      try {
+        if (ops.every(op => op.type === 'create' || op.type === 'update')) {
+          // 批量 upsert
+          const { error } = await this.supabase
+            .from(table)
+            .upsert(ops.map(op => ({ ...op.data, updated_at: new Date().toISOString() })));
+          
+          if (error) throw error;
+        } else {
+          // 混合操作，需要单独处理
+          for (const op of ops) {
+            switch (op.type) {
+              case 'create':
+              case 'update':
+                await this.supabase.from(table).upsert({
+                  ...op.data,
+                  updated_at: new Date().toISOString()
+                });
+                break;
+              case 'delete':
+                await this.supabase.from(table).delete().eq('id', op.id);
+                break;
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Bulk sync failed for table ${table}:`, error);
+        throw error;
+      }
+    });
+
+    await Promise.all(promises);
+  }
+
+  // 获取存储使用统计
+  async getStorageUsage(): Promise<any> {
+    try {
+      const { data, error } = await this.supabase
+        .rpc('get_storage_usage');
+
+      if (error) throw error;
+
+      return {
+        used: data?.used_bytes || 0,
+        available: data?.available_bytes || Infinity,
+        total: data?.total_bytes || Infinity,
+        percentage: data?.usage_percentage || 0
+      };
+    } catch (error) {
+      console.error('Failed to get storage usage:', error);
+      return {
+        used: 0,
+        available: Infinity,
+        total: Infinity,
+        percentage: 0
+      };
+    }
   }
 }
 
