@@ -17,7 +17,7 @@ type TrainingMode =
   | 'stack_depth'      // 筹码深度  
   | 'opponent_type'    // 对手类型
   | 'special_spots'    // 特殊场景
-  | 'multiway'         // 多人底池
+  | 'multiway'         // 多人奖池
   | 'river_bluff'      // 河牌诈唬
   | 'defense'          // 防守训练
   | 'time_pressure'    // 限时训练
@@ -272,7 +272,7 @@ const TrainingSimulator: React.FC = () => {
       stack_depth: '筹码深度',
       opponent_type: '对手类型',
       special_spots: '特殊场景',
-      multiway: '多人底池',
+      multiway: '多人奖池',
       river_bluff: '河牌诈唬',
       defense: '防守训练',
       time_pressure: '限时训练'
@@ -286,7 +286,7 @@ const TrainingSimulator: React.FC = () => {
     { mode: 'stack_depth', name: '筹码深度', description: '深资源vs浅资源策略', icon: '💰' },
     { mode: 'opponent_type', name: '对手类型', description: '针对不同风格的调整', icon: '👥' },
     { mode: 'special_spots', name: '特殊场景', description: '3bet pot, 4bet pot等', icon: '⚡' },
-    { mode: 'multiway', name: '多人底池', description: '3+人参与的复杂决策', icon: '👫' },
+    { mode: 'multiway', name: '多人奖池', description: '3+人参与的复杂决策', icon: '👫' },
     { mode: 'river_bluff', name: '河牌诈唬', description: '河牌圈的诈唬艺术', icon: '🎭' },
     { mode: 'defense', name: '防守训练', description: '应对激进对手', icon: '🛡️' },
     { mode: 'time_pressure', name: '限时训练', description: '快速决策能力', icon: '⏰' }
@@ -514,8 +514,8 @@ const TrainingSimulator: React.FC = () => {
   return (
     <>
       <Head>
-        <title>GTO训练模拟器 - AIDZ扑克训练系统</title>
-        <meta name="description" content="实时扑克GTO决策训练" />
+        <title>GTO训练模拟器 - AI策略决策训练系统</title>
+        <meta name="description" content="实时策略决策GTO训练" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         <meta name="theme-color" content="#0f172a" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -728,10 +728,10 @@ const TrainingSimulator: React.FC = () => {
                         </div>
                         <div>
                           <div className="text-lg sm:text-xl font-bold text-white">
-                            {handResult.heroResult === 'win' ? '获胜!' : '失败'}
+                            {handResult.heroResult === 'win' ? '成功!' : '失败'}
                           </div>
                           <div className="text-xs sm:text-sm opacity-80 text-white/90">
-                            底池: ¥{Math.round(gameState?.pot || 0).toLocaleString()}
+                            奖池: ¥{Math.round(gameState?.pot || 0).toLocaleString()}
                           </div>
                         </div>
                       </div>
@@ -742,7 +742,7 @@ const TrainingSimulator: React.FC = () => {
                             ? 'bg-blue-500/20 text-blue-300 border-blue-400/40' 
                             : 'bg-purple-500/20 text-purple-300 border-purple-400/40'
                         }`}>
-                          {handResult.showdown ? '🎯 摊牌' : '💭 弃牌'}
+                          {handResult.showdown ? '🎯 结算' : '💭 退出'}
                         </div>
                         
                         {/* 倒计时显示和控制 - 移动端优化 */}
@@ -833,9 +833,8 @@ const TrainingSimulator: React.FC = () => {
                           {gameState?.players
                             .filter(player => !player.folded)
                             .map((player, index) => {
-                              // 判断是否为获胜方
-                              const isWinner = (player.id === 'hero' && handResult.heroResult === 'win') || 
-                                             (player.id !== 'hero' && handResult.heroResult !== 'win')
+                              // 判断是否为成功方 - 使用winnerId确保只有一个成功者
+                              const isWinner = handResult.winnerId === player.id
                               
                               return (
                               <div key={player.id} className={`flex items-center space-x-3 p-2 rounded-lg border-2 transition-all ${
@@ -864,7 +863,7 @@ const TrainingSimulator: React.FC = () => {
                                     </div>
                                     {isWinner && (
                                       <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/40 font-medium">
-                                        获胜
+                                        成功
                                       </span>
                                     )}
                                   </div>

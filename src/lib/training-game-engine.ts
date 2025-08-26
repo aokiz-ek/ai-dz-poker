@@ -1,5 +1,6 @@
 import { GameState, Player, ActionType, Card } from '@/types/poker'
 import { stringToCard } from '@/lib/poker-utils'
+import { HandEvaluator } from '@/lib/hand-evaluator'
 
 interface TrainingGameState extends GameState {
   isTraining: boolean
@@ -52,11 +53,14 @@ export interface GameProgressResult {
 }
 
 interface HandResult {
-  winner: string
+  winnerId: string  // 具体获胜者的ID
+  winnerName: string  // 获胜者姓名
   winAmount: number
   showdown: boolean
   heroResult: 'win' | 'lose' | 'tie'
   analysis: string
+  // 兼容性字段
+  winner: string
 }
 
 export class TrainingGameEngine {
@@ -130,7 +134,7 @@ export class TrainingGameEngine {
         weight: 0.18,
         descriptions: ['顶对弱踢脚', '中对', '底两对'],
         action: 'call' as ActionType,
-        reasoning: '中等牌力需要控制底池大小',
+        reasoning: '中等组合强度需要控制奖池大小',
         frequency: 65
       },
       // 听牌 - 各种听牌组合
@@ -695,7 +699,7 @@ export class TrainingGameEngine {
   }
 
   /**
-   * 多人底池训练 - 3+人参与的复杂决策
+   * 多人奖池训练 - 3+人参与的复杂决策
    */
   private static generateMultiwayScenario(): {
     heroCards: string[]
@@ -713,10 +717,10 @@ export class TrainingGameEngine {
     return {
       heroCards,
       communityCards,
-      description: `${playerCount}人底池 - 多人复杂决策`,
+      description: `${playerCount}人奖池 - 多人复杂决策`,
       recommendedAction: {
         action: Math.random() < 0.6 ? 'call' : Math.random() < 0.8 ? 'fold' : 'raise',
-        reasoning: '多人底池需要更强的牌力才能激进',
+        reasoning: '多人奖池需要更强的组合强度才能激进',
         frequency: 70
       }
     }
@@ -1067,31 +1071,39 @@ export class TrainingGameEngine {
     switch (result) {
       case 'hero':
         handResult = {
-          winner: 'hero',
+          winnerId: 'hero',
+          winnerName: '主玩家',
+          winner: 'hero', // 兼容性
           winAmount: gameState.pot,
           showdown: false,
           heroResult: 'win',
-          analysis: '对手弃牌，你赢得底池'
+          analysis: '对手退出，你获得奖池'
         }
         break
       case 'opponents':
+        // 找到第一个未弃牌的非hero玩家作为获胜者
+        const remainingOpponent = gameState.players.find(p => p.id !== 'hero' && !p.folded)
         handResult = {
-          winner: 'opponents',
+          winnerId: remainingOpponent?.id || 'ai-1',
+          winnerName: remainingOpponent?.name || 'AI玩家',
+          winner: 'opponents', // 兼容性
           winAmount: gameState.pot,
           showdown: false,
           heroResult: 'lose',
-          analysis: '你弃牌，对手赢得底池'
+          analysis: '你退出，对手获得奖池'
         }
         break
       case 'showdown':
-        // Simplified showdown - random result
-        const heroWins = Math.random() > 0.5
+        // 使用真实组合强度比较进行结算
+        const showdownResult = this.evaluateShowdown(gameState)
         handResult = {
-          winner: heroWins ? 'hero' : 'opponents',
+          winnerId: showdownResult.winnerId,
+          winnerName: showdownResult.winnerName,
+          winner: showdownResult.winnerId, // 兼容性
           winAmount: gameState.pot,
           showdown: true,
-          heroResult: heroWins ? 'win' : 'lose',
-          analysis: heroWins ? '摊牌获胜！' : '摊牌失败'
+          heroResult: showdownResult.heroResult,
+          analysis: showdownResult.analysis
         }
         break
     }
@@ -1281,7 +1293,7 @@ export class TrainingGameEngine {
       stage = 'river'
     }
     
-    // 随机生成不同的筹码量和底池大小  
+    // 随机生成不同的筹码量和奖池大小  
     const randomHeroStack = 150 + Math.random() * 100 // 150-250
     const randomOpponentStack = 180 + Math.random() * 120 // 180-300
     const basePot = stage === 'flop' ? 12 : stage === 'turn' ? 24 : stage === 'river' ? 36 : 6
@@ -1346,6 +1358,82 @@ export class TrainingGameEngine {
         correctDecisions: 0,
         currentStreak: 0
       }
+    }
+  }
+
+  /**
+   * 真实结算评估 - 使用国际策略决策规则
+   */
+  private static evaluateShowdown(gameState: TrainingGameState): {
+    winnerId: string
+    winnerName: string
+    heroResult: 'win' | 'lose' | 'tie'
+    analysis: string
+  } {
+    // 获取未弃牌的玩家
+    const activePlayers = gameState.players.filter(p => !p.folded && p.cards)
+    
+    if (activePlayers.length === 0) {
+      // 异常情况，返回默认结果
+      return {
+        winnerId: 'hero',
+        winnerName: '主玩家',
+        heroResult: 'win',
+        analysis: '异常情况：无活跃玩家'
+      }
+    }
+    
+    if (activePlayers.length === 1) {
+      // 只有一个玩家，直接获胜
+      const winner = activePlayers[0]
+      return {
+        winnerId: winner.id,
+        winnerName: winner.name,
+        heroResult: winner.id === 'hero' ? 'win' : 'lose',
+        analysis: `${winner.name}获胜（唯一未弃牌玩家）`
+      }
+    }
+
+    // 多个玩家结算，比较组合强度
+    let bestPlayer: Player | null = null
+    let bestStrength = -1
+    let bestRank = ''
+    
+    for (const player of activePlayers) {
+      try {
+        // 评估玩家的最佳策略组合
+        const handResult = HandEvaluator.evaluateBestHand(
+          player.cards as [Card, Card], 
+          gameState.communityCards
+        )
+        
+        if (handResult.strength > bestStrength) {
+          bestStrength = handResult.strength
+          bestPlayer = player
+          bestRank = handResult.description
+        }
+      } catch (error) {
+        console.error(`评估玩家 ${player.id} 组合强度时出错:`, error)
+        // 如果评估失败，给予最低组合强度
+        if (bestStrength === -1) {
+          bestPlayer = player
+          bestStrength = 0
+          bestRank = '高牌'
+        }
+      }
+    }
+
+    if (!bestPlayer) {
+      // 异常情况，返回第一个玩家
+      bestPlayer = activePlayers[0]
+      bestRank = '未知'
+    }
+
+    return {
+      winnerId: bestPlayer.id,
+      winnerName: bestPlayer.name,
+      heroResult: bestPlayer.id === 'hero' ? 'win' : 'lose',
+      analysis: `${bestPlayer.name}以${bestRank}获胜！`
     }
   }
 }
