@@ -20,9 +20,9 @@ import {
  * 性能目标：<5ms分析时间
  */
 export class BoardTextureAnalyzer {
-  // 牌面数值映射 (A=14, K=13, Q=12, J=11, T=10, 9-2对应)
+  // 牌面数值映射 (A=14, K=13, Q=12, J=11, 10=10, 9-2对应)
   private static readonly RANK_VALUES: Record<Rank, number> = {
-    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
+    'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10,
     '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
   };
 

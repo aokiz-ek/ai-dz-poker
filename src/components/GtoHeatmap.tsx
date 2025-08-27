@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Tooltip } from "antd";
 
-const RANKS = ["A","K","Q","J","T","9","8","7","6","5","4","3","2"];
+const RANKS = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"];
 const GRID_SIZE = 13;
 
 interface StrategyData {
@@ -518,7 +518,7 @@ export default function GtoHeatmap() {
                     
                     {/* Tooltip on hover */}
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 px-2 py-1 bg-slate-800 text-black text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                      {rank === 'A' ? 'A (尖子)' : rank === 'K' ? 'K (国王)' : rank === 'Q' ? 'Q (皇后)' : rank === 'J' ? 'J (武士)' : rank === 'T' ? 'T (10)' : `${rank}`}
+                      {rank === 'A' ? 'A (尖子)' : rank === 'K' ? 'K (国王)' : rank === 'Q' ? 'Q (皇后)' : rank === 'J' ? 'J (武士)' : rank === '10' ? '10' : `${rank}`}
                     </div>
                   </div>
                 ))}
@@ -546,7 +546,7 @@ export default function GtoHeatmap() {
                       
                       {/* Tooltip on hover */}
                       <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-1 px-2 py-1 bg-slate-800 text-black text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                        {rowRank === 'A' ? 'A (尖子)' : rowRank === 'K' ? 'K (国王)' : rowRank === 'Q' ? 'Q (皇后)' : rowRank === 'J' ? 'J (武士)' : rowRank === 'T' ? 'T (10)' : `${rowRank}`}
+                        {rowRank === 'A' ? 'A (尖子)' : rowRank === 'K' ? 'K (国王)' : rowRank === 'Q' ? 'Q (皇后)' : rowRank === 'J' ? 'J (武士)' : rowRank === '10' ? '10' : `${rowRank}`}
                       </div>
                     </div>
                     

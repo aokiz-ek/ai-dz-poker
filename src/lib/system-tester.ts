@@ -67,7 +67,7 @@ export class SystemTester {
       results.push(await this.testBasicStorage());
       
       // 2. 数据完整性测试
-      results.push(await this testDataIntegrity());
+      results.push(await this.testDataIntegrity());
       
       // 3. 同步功能测试
       if (this.syncManager) {
@@ -365,7 +365,7 @@ export class SystemTester {
       await this.testStorageFull();
       
       // 测试数据损坏恢复
-      await this testDataCorruption();
+      await this.testDataCorruption();
 
       return {
         name: '错误恢复',

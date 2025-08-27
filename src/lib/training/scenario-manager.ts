@@ -389,7 +389,7 @@ export class TrainingScenarioManager {
     // 生成转牌决策场景
     const heroCards: [Card, Card] = [
       { suit: 'spades', rank: 'J' },
-      { suit: 'hearts', rank: 'T' }
+      { suit: 'hearts', rank: '10' }
     ];
 
     const communityCards: Card[] = [

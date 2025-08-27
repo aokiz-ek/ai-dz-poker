@@ -269,7 +269,7 @@ export class DataCompressor {
 
   private encodeCard(card: Card): number {
     const suitCode = ['hearts', 'diamonds', 'clubs', 'spades'].indexOf(card.suit);
-    const rankCode = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'].indexOf(card.rank);
+    const rankCode = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'].indexOf(card.rank);
     return (suitCode << 4) | rankCode;
   }
 

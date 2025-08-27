@@ -280,7 +280,7 @@ function getHandStrength(cards: any[]): 'premium' | 'strong' | 'playable' | 'mar
   if (!cards || cards.length !== 2) return 'weak';
   
   const [card1, card2] = cards;
-  const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+  const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
   const rank1Index = ranks.indexOf(card1.rank);
   const rank2Index = ranks.indexOf(card2.rank);
   

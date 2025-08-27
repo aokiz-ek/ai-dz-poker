@@ -38,7 +38,7 @@ export function stringToCard(cardString: string): Card {
 // 将牌面转换为数值以便比较
 export function rankValue(rank: Rank): number {
   const values = {
-    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
+    'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10,
     '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
   };
   return values[rank];
@@ -68,7 +68,7 @@ export function getHandCode(card1: Card, card2: Card): string {
 
 // 按顺序获取所有可能的起手牌
 export function getAllStartingHands(): string[] {
-  const ranks: Rank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+  const ranks: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
   const hands: string[] = [];
   
   for (let i = 0; i < ranks.length; i++) {
@@ -116,7 +116,7 @@ export function estimateHandStrength(holeCards: [Card, Card], communityCards: Ca
   
   // 基础翻前手牌强度估算
   const pairStrength = {
-    'AA': 0.95, 'KK': 0.90, 'QQ': 0.85, 'JJ': 0.80, 'TT': 0.75,
+    'AA': 0.95, 'KK': 0.90, 'QQ': 0.85, 'JJ': 0.80, '1010': 0.75,
     '99': 0.70, '88': 0.65, '77': 0.60, '66': 0.55, '55': 0.50,
     '44': 0.45, '33': 0.40, '22': 0.35
   };

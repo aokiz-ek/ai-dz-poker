@@ -34,9 +34,9 @@ export class HandEvaluator {
     'royal-flush': 9
   };
 
-  // 牌面数值映射 (A=14, K=13, Q=12, J=11, T=10, 9-2对应)
+  // 牌面数值映射 (A=14, K=13, Q=12, J=11, 10=10, 9-2对应)
   private static readonly RANK_VALUES: Record<Rank, number> = {
-    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
+    'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10,
     '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
   };
 
@@ -205,15 +205,16 @@ export class HandEvaluator {
     const rankCounts = this.countRanks(ranks);
     const suitCounts = this.countSuits(suits);
     
-    const isFlush = Object.values(suitCounts).some(count => count >= 5);
+    const isFlush = Object.values(suitCounts).some(count => count === 5);
     const isStraight = this.isStraight(ranks);
 
     // 判断手牌类型
     if (isStraight && isFlush) {
-      if (ranks[0] === 'A' && ranks[1] === 'K') {
+      const straightInfo = this.getStraightInfo(ranks);
+      if (straightInfo.isRoyal) {
         return { rank: 'royal-flush' as HandRank, kickers: [] as Rank[] };
       }
-      return { rank: 'straight-flush' as HandRank, kickers: [ranks[0]] };
+      return { rank: 'straight-flush' as HandRank, kickers: [straightInfo.highCard] };
     }
 
     if (Object.values(rankCounts).includes(4)) {
@@ -233,13 +234,15 @@ export class HandEvaluator {
     }
 
     if (isStraight) {
-      return { rank: 'straight' as HandRank, kickers: [ranks[0]] };
+      const straightInfo = this.getStraightInfo(ranks);
+      return { rank: 'straight' as HandRank, kickers: [straightInfo.highCard] };
     }
 
     if (Object.values(rankCounts).includes(3)) {
       const trips = Object.keys(rankCounts).find(rank => rankCounts[rank as Rank] === 3) as Rank;
       const kickers = Object.keys(rankCounts)
         .filter(rank => rankCounts[rank as Rank] === 1)
+        .sort((a, b) => this.RANK_VALUES[b as Rank] - this.RANK_VALUES[a as Rank])
         .slice(0, 2) as Rank[];
       return { rank: 'three-of-a-kind' as HandRank, kickers: [trips, ...kickers] };
     }
@@ -249,14 +252,18 @@ export class HandEvaluator {
       const sortedPairs = pairs.sort((a, b) => 
         this.RANK_VALUES[b as Rank] - this.RANK_VALUES[a as Rank]
       ) as Rank[];
-      const kicker = Object.keys(rankCounts).find(rank => rankCounts[rank as Rank] === 1) as Rank;
-      return { rank: 'two-pair' as HandRank, kickers: [...sortedPairs.slice(0, 2), kicker] };
+      const kickers = Object.keys(rankCounts)
+        .filter(rank => rankCounts[rank as Rank] === 1)
+        .sort((a, b) => this.RANK_VALUES[b as Rank] - this.RANK_VALUES[a as Rank])
+        .slice(0, 1) as Rank[];
+      return { rank: 'two-pair' as HandRank, kickers: [...sortedPairs.slice(0, 2), ...kickers] };
     }
 
     if (pairs.length === 1) {
       const pair = pairs[0] as Rank;
       const kickers = Object.keys(rankCounts)
         .filter(rank => rankCounts[rank as Rank] === 1)
+        .sort((a, b) => this.RANK_VALUES[b as Rank] - this.RANK_VALUES[a as Rank])
         .slice(0, 3) as Rank[];
       return { rank: 'pair' as HandRank, kickers: [pair, ...kickers] };
     }
@@ -273,7 +280,12 @@ export class HandEvaluator {
     // 添加kicker值
     let kickerValue = 0;
     analysis.kickers.forEach((kicker, index) => {
-      kickerValue += this.RANK_VALUES[kicker] * Math.pow(15, 4 - index);
+      let kickerRankValue = this.RANK_VALUES[kicker];
+      
+      // 特殊处理：对于A-5顺子，如果kicker是5，不需要特殊处理，已经在getStraightInfo中正确设置
+      // 但如果是其他情况下的A，保持原有逻辑
+      
+      kickerValue += kickerRankValue * Math.pow(15, 4 - index);
     });
 
     return baseValue + kickerValue;
@@ -318,19 +330,67 @@ export class HandEvaluator {
   }
 
   private static isStraight(ranks: Rank[]): boolean {
+    const straightInfo = this.getStraightInfo(ranks);
+    return straightInfo.isStraight;
+  }
+
+  /**
+   * 获取顺子信息，正确处理A-5顺子和皇家同花顺
+   */
+  private static getStraightInfo(ranks: Rank[]): {
+    isStraight: boolean;
+    isRoyal: boolean;
+    highCard: Rank;
+  } {
     const values = ranks.map(r => this.RANK_VALUES[r]).sort((a, b) => b - a);
+    const uniqueValues = Array.from(new Set(values)).sort((a, b) => b - a);
     
-    // 检查连续性
-    for (let i = 0; i < 4; i++) {
-      if (values[i] - values[i + 1] !== 1) {
-        // 特殊情况：A-2-3-4-5 (wheel)
-        if (i === 0 && values[0] === 14 && values[1] === 5 && values[2] === 4 && values[3] === 3 && values[4] === 2) {
-          return true;
+    if (uniqueValues.length < 5) {
+      return { isStraight: false, isRoyal: false, highCard: ranks[0] };
+    }
+
+    // 检查标准顺子 (连续5张)
+    for (let i = 0; i <= uniqueValues.length - 5; i++) {
+      let isConsecutive = true;
+      for (let j = 0; j < 4; j++) {
+        if (uniqueValues[i + j] - uniqueValues[i + j + 1] !== 1) {
+          isConsecutive = false;
+          break;
         }
-        return false;
+      }
+      
+      if (isConsecutive) {
+        const highValue = uniqueValues[i];
+        const highRank = this.getRankFromValue(highValue);
+        
+        // 检查是否是皇家同花顺 (A-K-Q-J-10)
+        const isRoyal = highValue === 14 && uniqueValues[i + 1] === 13 && 
+                        uniqueValues[i + 2] === 12 && uniqueValues[i + 3] === 11 && 
+                        uniqueValues[i + 4] === 10;
+        
+        return { isStraight: true, isRoyal, highCard: highRank };
       }
     }
-    return true;
+
+    // 特殊情况：A-2-3-4-5 (wheel顺子，A算作1)
+    if (uniqueValues.includes(14) && uniqueValues.includes(5) && 
+        uniqueValues.includes(4) && uniqueValues.includes(3) && 
+        uniqueValues.includes(2)) {
+      return { isStraight: true, isRoyal: false, highCard: '5' as Rank }; // A-5顺子的高牌是5
+    }
+
+    return { isStraight: false, isRoyal: false, highCard: ranks[0] };
+  }
+
+  /**
+   * 从数值获取牌面
+   */
+  private static getRankFromValue(value: number): Rank {
+    const valueToRank: Record<number, Rank> = {
+      14: 'A', 13: 'K', 12: 'Q', 11: 'J', 10: '10',
+      9: '9', 8: '8', 7: '7', 6: '6', 5: '5', 4: '4', 3: '3', 2: '2'
+    };
+    return valueToRank[value] || '2';
   }
 
   private static generateCombinations<T>(arr: T[], size: number): T[][] {
@@ -374,7 +434,18 @@ export class HandEvaluator {
 
     // 检查内听
     // 简化实现 - 实际需要更详细的分析
-    return { type: 'gutshot' as DrawType, outs: 4 };
+    if (uniqueRanks.length >= 4) {
+      // 检查是否有内听可能
+      for (let i = 0; i <= uniqueRanks.length - 3; i++) {
+        const subset = uniqueRanks.slice(i, i + 4);
+        const gaps = this.countGapsInSequence(subset);
+        if (gaps === 1) {
+          return { type: 'gutshot' as DrawType, outs: 4 };
+        }
+      }
+    }
+    
+    return { type: 'gutshot' as DrawType, outs: 0 };
   }
 
   private static analyzeBackdoorDraws(cards: Card[]) {
@@ -412,5 +483,19 @@ export class HandEvaluator {
       }
     }
     return true;
+  }
+
+  private static countGapsInSequence(ranks: number[]): number {
+    if (ranks.length < 2) return 0;
+    
+    const sorted = [...ranks].sort((a, b) => b - a);
+    let gaps = 0;
+    
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const gap = sorted[i] - sorted[i + 1] - 1;
+      gaps += gap > 0 ? gap : 0;
+    }
+    
+    return gaps;
   }
 }

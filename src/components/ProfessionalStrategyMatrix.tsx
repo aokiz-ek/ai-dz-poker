@@ -29,7 +29,7 @@ const { Option } = Select;
 
 
 // 手牌等级定义
-const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+const RANKS = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 
 // 策略数据接口
 interface StrategyData {

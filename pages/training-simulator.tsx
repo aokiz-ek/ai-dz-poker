@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { PlayerAction, ActionType } from '@/types/poker'
 import TrainingPokerTable from '@/components/TrainingPokerTable'
 import TrainingActionButtons from '@/components/TrainingActionButtons'
-import ActionHistory from '@/components/training/ActionHistory'
+import ActionHistory, { DetailedActionRecord } from '@/components/training/ActionHistory'
 import { 
   TrainingGameEngine, 
   type TrainingGameState, 
@@ -22,14 +22,8 @@ type TrainingMode =
   | 'defense'          // 防守训练
   | 'time_pressure'    // 限时训练
 
-interface PlayerActionDisplay {
-  playerId: string
-  playerName: string
-  action: ActionType
-  amount?: number
-  position: string
-  timestamp: number
-}
+// 使用从ActionHistory导入的DetailedActionRecord类型
+type PlayerActionDisplay = DetailedActionRecord
 
 // GTO Strategy Helper Functions
 const getGTORecommendation = (gameState: TrainingGameState | null, handResult: any): string => {
@@ -147,7 +141,8 @@ const TrainingSimulator: React.FC = () => {
     setHandResult(null)
     setGameMessage('')
     setIsProcessingAction(false)
-    setActionHistory([]) // 重置操作历史
+    // 从游戏引擎的ActionRecorder获取操作历史
+    setActionHistory(newGameState.actionRecorder.getRecords())
   }
 
   const getValidActions = (): ActionType[] => {
@@ -179,19 +174,7 @@ const TrainingSimulator: React.FC = () => {
     setIsProcessingAction(true)
     setIsWaitingForAction(false)
     
-    // 记录玩家操作到历史中
-    const heroPlayer = gameState.players.find(p => p.id === 'hero')
-    if (heroPlayer) {
-      const actionRecord: PlayerActionDisplay = {
-        playerId: heroPlayer.id,
-        playerName: heroPlayer.name,
-        action: action.type,
-        amount: action.amount,
-        position: heroPlayer.position,
-        timestamp: Date.now()
-      }
-      setActionHistory(prev => [...prev, actionRecord])
-    }
+    // 操作记录现在由游戏引擎的ActionRecorder处理
     
     try {
       // Process the player action through game engine
@@ -201,21 +184,9 @@ const TrainingSimulator: React.FC = () => {
         action.amount
       )
 
-      // Update game state
+      // Update game state and action history from ActionRecorder
       setGameState(result.gameState)
-
-      // 记录游戏引擎返回的AI操作到历史中
-      if (result.aiActions && result.aiActions.length > 0) {
-        const aiActionRecords = result.aiActions.map(aiAction => ({
-          playerId: aiAction.playerId,
-          playerName: aiAction.playerName,
-          action: aiAction.action,
-          amount: aiAction.amount,
-          position: aiAction.position,
-          timestamp: Date.now() + Math.random() * 100 // 稍微错开时间戳
-        }))
-        setActionHistory(prev => [...prev, ...aiActionRecords])
-      }
+      setActionHistory(result.gameState.actionRecorder.getRecords())
 
       // Handle different game progression results
       if (result.isHandComplete && result.handResult) {
@@ -363,7 +334,7 @@ const TrainingSimulator: React.FC = () => {
     }
     
     if (currentPlayer.id === 'hero') {
-      console.log('轮到英雄玩家，等待用户操作')
+      console.log('轮到英雄玩家，等待用户决策')
       setIsWaitingForAction(true)
       return
     }
@@ -417,6 +388,7 @@ const TrainingSimulator: React.FC = () => {
       }
       
       setGameState(result.gameState)
+      setActionHistory(result.gameState.actionRecorder.getRecords())
       
       if (result.isHandComplete && result.handResult) {
         setHandResult(result.handResult)
@@ -640,6 +612,35 @@ const TrainingSimulator: React.FC = () => {
               onPlayerAction={handlePlayerAction}
               showAllCards={!!handResult} // 手牌结束时显示所有非弃牌玩家的手牌
               readOnly={!!handResult}
+              handRankings={(() => {
+                // 优先使用新的handRankings数据，如果没有则使用旧的数据结构
+                const newRankings = handResult?.handRankings;
+                const legacyRankings = handResult?.detailedAnalysis?.handRankings;
+                
+                if (newRankings && newRankings.length > 0) {
+                  return newRankings.map((ranking: any) => ({
+                    playerId: ranking.playerId,
+                    playerName: ranking.playerName,
+                    rank: ranking.rank,
+                    handDescription: ranking.handEvaluation?.readableDescription || 
+                                   ranking.handEvaluation?.handDescription || 
+                                   '未知牌型',
+                    isFolded: ranking.isFolded || false,
+                    finalAction: ranking.isFolded ? '弃牌' : undefined
+                  }));
+                } else if (legacyRankings && legacyRankings.length > 0) {
+                  return legacyRankings.map((ranking: any) => ({
+                    playerId: ranking.playerId,
+                    playerName: ranking.playerName,
+                    rank: ranking.rank,
+                    handDescription: ranking.handDescription || '未知牌型',
+                    isFolded: ranking.isFolded || false,
+                    finalAction: ranking.finalAction || (ranking.isFolded ? '弃牌' : undefined)
+                  }));
+                }
+                
+                return [];
+              })()}
             />
           </div>
 
@@ -713,24 +714,24 @@ const TrainingSimulator: React.FC = () => {
                   }}
                 >
                   <div className="bg-black/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 max-w-sm sm:max-w-lg md:max-w-2xl w-full max-h-[90vh] overflow-hidden">
-                  {/* Header Section - 移动端优化 */}
+                  {/* Header Section - 移动端优化，增强色彩对比度 */}
                   <div className={`
-                    px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10
-                    ${handResult.heroResult === 'win' 
-                      ? 'bg-gradient-to-r from-emerald-500/30 to-green-500/20' 
-                      : 'bg-gradient-to-r from-red-500/30 to-red-500/20'
+                    px-4 sm:px-6 py-4 sm:py-5 border-b border-white/20
+                    ${handResult.heroHandResult === 'win' 
+                      ? 'bg-gradient-to-r from-emerald-500/40 to-green-500/30 border-emerald-400/40' 
+                      : 'bg-gradient-to-r from-red-500/40 to-red-500/30 border-red-400/40'
                     }
                   `}>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 sm:space-x-3">
-                        <div className="text-2xl sm:text-3xl">
-                          {handResult.heroResult === 'win' ? '🎉' : '💔'}
+                      <div className="flex items-center space-x-3 sm:space-x-4">
+                        <div className="text-3xl sm:text-4xl">
+                          {handResult.heroHandResult === 'win' ? '🎉' : '💔'}
                         </div>
                         <div>
-                          <div className="text-lg sm:text-xl font-bold text-white">
-                            {handResult.heroResult === 'win' ? '成功!' : '失败'}
+                          <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-lg">
+                            {handResult.heroHandResult === 'win' ? '成功!' : '失败'}
                           </div>
-                          <div className="text-xs sm:text-sm opacity-80 text-white/90">
+                          <div className="text-sm sm:text-base font-medium text-white/95 drop-shadow-sm">
                             奖池: ¥{Math.round(gameState?.pot || 0).toLocaleString()}
                           </div>
                         </div>
@@ -789,14 +790,14 @@ const TrainingSimulator: React.FC = () => {
 
                   {/* Content Sections - 可滚动内容区域 */}
                   <div className="bg-black/40 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                    {/* Community Cards Section */}
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-green-300">🎰</span>
-                        <h3 className="text-base sm:text-lg font-semibold text-white">公共牌</h3>
+                    {/* Community Cards Section - 增强视觉效果 */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">🎰</span>
+                        <h3 className="text-lg sm:text-xl font-bold text-white drop-shadow-sm">公共牌</h3>
                       </div>
-                      <div className="bg-white/5 rounded-lg p-3 sm:p-4 border border-white/10">
-                        <div className="flex space-x-2 sm:space-x-3 justify-center">
+                      <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-4 sm:p-6 border border-white/20 shadow-lg">
+                        <div className="flex space-x-3 sm:space-x-4 justify-center">
                           {gameState?.communityCards.map((card, index) => (
                             <div key={index} className="w-10 h-14 sm:w-12 sm:h-16 bg-white rounded border border-gray-300 flex flex-col items-center justify-between p-1 shadow-sm">
                               <div className={`text-sm sm:text-base font-bold ${
@@ -822,75 +823,184 @@ const TrainingSimulator: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Player Cards Display Section */}
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-purple-300">🃏</span>
-                        <h3 className="text-base sm:text-lg font-semibold text-white">玩家手牌</h3>
+                    {/* Player Cards Display Section - 增强赢家显示 */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">🃏</span>
+                        <h3 className="text-lg sm:text-xl font-bold text-white drop-shadow-sm">玩家手牌</h3>
                       </div>
-                      <div className="bg-white/5 rounded-lg p-3 sm:p-4 border border-white/10">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-4 sm:p-6 border border-white/20 shadow-lg">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {gameState?.players
                             .filter(player => !player.folded)
+                            // 按牌力排序：获胜者优先，然后按排名
+                            .sort((a, b) => {
+                              const aIsWinner = handResult.handWinnerId === a.id ? 1 : 0;
+                              const bIsWinner = handResult.handWinnerId === b.id ? 1 : 0;
+                              if (aIsWinner !== bIsWinner) return bIsWinner - aIsWinner;
+                              
+                              // 🎯 兼容新旧数据结构
+                              const newHandRankings = handResult?.handRankings;
+                              const legacyHandRankings = handResult?.detailedAnalysis?.handRankings;
+                              const currentHandRankings = newHandRankings || legacyHandRankings;
+                              
+                              const aRanking = currentHandRankings?.find((r: any) => r.playerId === a.id);
+                              const bRanking = currentHandRankings?.find((r: any) => r.playerId === b.id);
+                              return (aRanking?.rank || 999) - (bRanking?.rank || 999);
+                            })
                             .map((player, index) => {
-                              // 判断是否为成功方 - 使用winnerId确保只有一个成功者
-                              const isWinner = handResult.winnerId === player.id
+                              // 判断是否为成功方 - 使用handWinnerId确保只有一个成功者
+                              const isWinner = handResult.handWinnerId === player.id
                               
                               return (
-                              <div key={player.id} className={`flex items-center space-x-3 p-2 rounded-lg border-2 transition-all ${
+                              <div key={player.id} className={`flex flex-col items-center space-y-2 sm:space-y-3 p-3 sm:p-4 rounded-xl border-2 transition-all relative overflow-hidden ${
                                 isWinner 
-                                  ? 'bg-gradient-to-r from-emerald-500/20 to-green-500/10 border-emerald-400/50 shadow-lg' 
-                                  : 'bg-black/20 border-transparent'
+                                  ? 'bg-gradient-to-br from-yellow-400/60 via-amber-500/50 via-orange-500/40 to-yellow-600/50 border-yellow-300/90 shadow-2xl shadow-yellow-400/60' 
+                                  : 'bg-gradient-to-r from-gray-800/60 to-gray-700/40 border-gray-600/40 hover:border-gray-500/60'
                               }`}>
-                                <div className="flex-shrink-0">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${
-                                    player.id === 'hero' 
-                                      ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/40' 
-                                      : 'bg-blue-500/20 text-blue-300 border border-blue-400/40'
+                                {/* 获胜者精简金色光环系统 */}
+                                {isWinner && (
+                                  <>
+                                    {/* 主要光环 - 金色光芒 */}
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-400 rounded-xl opacity-40 animate-pulse shadow-xl shadow-yellow-400/50"></div>
+                                    
+                                    {/* 内层光环 - 边框增强 */}
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-yellow-300/40 via-amber-400/50 to-yellow-300/40 rounded-xl opacity-50 animate-ping"></div>
+                                  </>
+                                )}
+                                
+                                {/* 头像区域 */}
+                                <div className="relative">
+                                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-lg font-bold relative shadow-lg ${
+                                    isWinner 
+                                      ? 'bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 text-white border-3 border-yellow-200 animate-bounce shadow-xl shadow-yellow-400/50 ring-1 ring-yellow-300/40' 
+                                      : player.id === 'hero' 
+                                        ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-2 border-blue-300/60' 
+                                        : 'bg-gradient-to-br from-gray-600 to-gray-700 text-white/80 border-2 border-gray-400/40'
                                   }`}>
-                                    {player.id === 'hero' ? '👑' : index + 1}
+                                    {/* 获胜者头像光环 */}
                                     {isWinner && (
-                                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
-                                        <span className="text-white text-xs">🏆</span>
-                                      </div>
+                                      <>
+                                        <div className="absolute -inset-1 bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 rounded-full opacity-50 animate-pulse"></div>
+                                        <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-400 rounded-full opacity-30 animate-ping"></div>
+                                      </>
                                     )}
+                                    <span className={`relative z-10 ${isWinner ? 'drop-shadow-lg animate-pulse' : ''}`}>
+                                      {isWinner ? '🏆' : player.id === 'hero' ? '👑' : (index + 1)}
+                                    </span>
                                   </div>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-sm font-medium text-white truncate">
-                                      {player.name}
+                                  
+                                  {/* 获胜者皇冠徽章 */}
+                                  {isWinner && (
+                                    <div className="absolute -top-3 -right-3 w-6 h-6 sm:w-7 sm:h-7 bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-500 rounded-full flex items-center justify-center animate-bounce border-2 border-yellow-200 shadow-xl shadow-yellow-400/50 ring-1 ring-yellow-300/30">
+                                      <span className="text-white text-xs sm:text-sm font-bold drop-shadow-sm">👑</span>
+                                      <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-400 to-amber-400 rounded-full opacity-30 animate-pulse"></div>
                                     </div>
-                                    {isWinner && (
-                                      <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/40 font-medium">
-                                        成功
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-white/60">
-                                    {player.position} • ${Math.round(player.stack).toLocaleString()}
-                                  </div>
+                                  )}
                                 </div>
-                                <div className="flex space-x-1">
+
+                                {/* 玩家信息区域 */}
+                                <div className="text-center space-y-1">
+                                  <div className={`text-sm sm:text-base font-bold ${
+                                    isWinner 
+                                      ? 'text-transparent bg-gradient-to-r from-yellow-200 via-amber-100 to-yellow-200 bg-clip-text drop-shadow-lg animate-pulse' 
+                                      : player.id === 'hero'
+                                        ? 'text-blue-200 font-medium drop-shadow-sm'
+                                        : 'text-white/95 drop-shadow-sm'
+                                  }`}>
+                                    {player.name}
+                                  </div>
+                                  
+                                  {/* 获胜者标签 */}
+                                  {isWinner && (
+                                    <div className="flex justify-center">
+                                      <div className="relative">
+                                        <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-400 rounded-full opacity-30 animate-pulse blur-sm"></div>
+                                        <span className="relative text-xs bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500 text-white px-2 py-1 rounded-full font-bold animate-bounce shadow-lg border border-yellow-200/90">
+                                          <span className="drop-shadow-sm">🏆 获胜者</span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  <div className={`text-xs sm:text-sm font-medium ${
+                                    isWinner 
+                                      ? 'text-transparent bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-300 bg-clip-text drop-shadow-sm font-bold' 
+                                      : player.id === 'hero'
+                                        ? 'text-blue-300/90'
+                                        : 'text-white/70'
+                                  }`}>
+                                    {player.position} • ${Math.round(player.stack).toLocaleString()}
+                                    {isWinner && <span className="ml-1 text-yellow-200 animate-pulse">✨</span>}
+                                  </div>
+                                  
+                                  {/* 🎯 显示最佳牌型信息 */}
+                                  {(() => {
+                                    // 优先使用新的handRankings数据，如果没有则尝试旧的数据结构
+                                    const playerRanking = handResult?.handRankings?.find((r: any) => r.playerId === player.id);
+                                    const legacyRanking = handResult?.detailedAnalysis?.handRankings?.find((r: any) => r.playerId === player.id);
+                                    
+                                    let handDescription = '';
+                                    
+                                    if (playerRanking?.handEvaluation) {
+                                      handDescription = playerRanking.handEvaluation.readableDescription || 
+                                                      playerRanking.handEvaluation.handDescription || '';
+                                    } else if (legacyRanking) {
+                                      handDescription = legacyRanking.handDescription || '';
+                                    }
+                                    
+                                    if (handDescription) {
+                                      return (
+                                        <div className={`text-xs mt-1 font-medium ${
+                                          isWinner 
+                                            ? 'text-yellow-200' 
+                                            : 'text-white/60'
+                                        }`}>
+                                          {handDescription}
+                                        </div>
+                                      )
+                                    }
+                                    return null
+                                  })()}
+                                </div>
+                                {/* 手牌区域 */}
+                                <div className="flex justify-center space-x-1 sm:space-x-1.5">
                                   {player.cards?.map((card, cardIndex) => (
-                                    <div key={cardIndex} className="w-6 h-8 sm:w-8 sm:h-10 bg-white rounded border border-gray-300 flex flex-col items-center justify-between p-0.5 text-xs shadow-sm">
-                                      <div className={`font-bold ${
+                                    <div key={cardIndex} className={`w-8 h-11 sm:w-10 sm:h-14 bg-white rounded border-2 flex flex-col items-center justify-between p-1 shadow-lg relative ${
+                                      isWinner 
+                                        ? 'border-yellow-400 shadow-lg shadow-yellow-400/50 ring-1 ring-amber-300/40' 
+                                        : 'border-gray-300 shadow-gray-400/20'
+                                    }`}>
+                                      {/* 获胜者手牌光环 */}
+                                      {isWinner && (
+                                        <>
+                                          <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-400 rounded-lg opacity-30 animate-pulse blur-sm"></div>
+                                          <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-300 rounded-lg opacity-20 animate-ping"></div>
+                                        </>
+                                      )}
+                                      
+                                      <div className={`text-xs sm:text-sm font-bold relative z-10 ${
                                         ['hearts', 'diamonds'].includes(card.suit) ? 'text-red-600' : 'text-black'
                                       }`}>
                                         {card.rank}
                                       </div>
-                                      <div className={`text-lg leading-none ${
+                                      <div className={`text-lg sm:text-xl leading-none relative z-10 ${
                                         ['hearts', 'diamonds'].includes(card.suit) ? 'text-red-600' : 'text-black'
                                       }`}>
                                         {card.suit === 'hearts' ? '♥' : 
                                          card.suit === 'diamonds' ? '♦' : 
                                          card.suit === 'clubs' ? '♣' : '♠'}
                                       </div>
-                                      <div className={`font-bold rotate-180 ${
+                                      <div className={`text-xs sm:text-sm font-bold rotate-180 relative z-10 ${
                                         ['hearts', 'diamonds'].includes(card.suit) ? 'text-red-600' : 'text-black'
                                       }`}>
                                         {card.rank}
                                       </div>
+                                      
+                                      {/* 获胜者手牌闪烁星星效果 */}
+                                      {isWinner && (
+                                        <div className="absolute top-0 right-0 text-yellow-400 text-xs animate-pulse">✨</div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -900,40 +1010,133 @@ const TrainingSimulator: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Analysis Section */}
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-blue-300">📊</span>
-                        <h3 className="text-base sm:text-lg font-semibold text-white">牌局分析</h3>
+
+                    {/* Analysis Section - 增强可读性 */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">📊</span>
+                        <h3 className="text-lg sm:text-xl font-bold text-white drop-shadow-sm">牌局分析</h3>
                       </div>
-                      <div className="bg-white/5 rounded-lg p-3 sm:p-4 border border-white/10">
-                        <p className="text-white/90 text-sm leading-relaxed">
+                      <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-4 sm:p-6 border border-white/20 shadow-lg">
+                        <p className="text-white/95 text-sm sm:text-base leading-relaxed font-medium">
                           {handResult.analysis}
                         </p>
                       </div>
                     </div>
 
-                    {/* GTO Strategy Section */}
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-yellow-300">🎯</span>
-                        <h3 className="text-base sm:text-lg font-semibold text-white">GTO策略建议</h3>
+                    {/* Professional Side Pot Analysis */}
+                    {handResult.sidePotResult && handResult.sidePotResult.sidePots.length > 1 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-yellow-300">🎯</span>
+                          <h3 className="text-base sm:text-lg font-semibold text-white">专业边池分析</h3>
+                        </div>
+                        <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/5 rounded-lg p-3 sm:p-4 border border-yellow-400/20">
+                          {/* Side Pot Structure */}
+                          <div className="space-y-2 mb-3">
+                            <div className="text-sm font-medium text-white/90">边池结构：</div>
+                            {handResult.sidePotResult.sidePots.map((pot: any, index: number) => {
+                              const potName = index === 0 ? '主池' : `边池${index}`;
+                              return (
+                                <div key={pot.id} className="flex justify-between items-center bg-black/20 rounded px-2 py-1">
+                                  <span className="text-xs text-white/80">{potName}</span>
+                                  <span className="text-sm font-semibold text-yellow-300">${pot.amount}</span>
+                                  <span className="text-xs text-white/60">({pot.eligiblePlayerIds.length}人)</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          
+                          {/* Distribution Summary */}
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-white/90">奖池分配：</div>
+                            {handResult.sidePotResult.distributions
+                              .filter((d: any) => d.amount > 0)
+                              .map((dist: any) => (
+                                <div key={`${dist.potId}-${dist.playerId}`} className="flex justify-between items-center bg-black/20 rounded px-2 py-1">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-white/80">{dist.playerName}</span>
+                                    {dist.isTied && <span className="text-xs bg-blue-500/20 text-blue-300 px-1 py-0.5 rounded">平局</span>}
+                                  </div>
+                                  <span className="text-sm font-semibold text-green-300">+${dist.amount}</span>
+                                </div>
+                              ))
+                            }
+                          </div>
+                          
+                          <div className="text-xs text-white/70 mt-3 p-2 bg-black/20 rounded">
+                            💡 使用国际德州扑克标准边池规则计算
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/5 rounded-lg p-3 sm:p-4 border border-yellow-400/20">
-                        <div className="space-y-2">
+                    )}
+
+                    {/* Detailed Professional Analysis */}
+                    {handResult.detailedAnalysis && (
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-purple-300">📈</span>
+                          <h3 className="text-base sm:text-lg font-semibold text-white">专业教学分析</h3>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/5 rounded-lg p-3 sm:p-4 border border-purple-400/20">
+                          {/* Strategic Insights */}
+                          {handResult.detailedAnalysis.strategicInsights.length > 0 && (
+                            <div className="space-y-2 mb-4">
+                              <div className="text-sm font-medium text-white/90">🎯 策略洞察：</div>
+                              {handResult.detailedAnalysis.strategicInsights.slice(0, 2).map((insight: any, index: number) => (
+                                <div key={index} className="bg-black/20 rounded px-3 py-2">
+                                  <div className="text-xs font-medium text-purple-300 mb-1">{insight.title}</div>
+                                  <div className="text-xs text-white/80">{insight.description}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Learning Points */}
+                          {handResult.detailedAnalysis.learningPoints.length > 0 && (
+                            <div className="space-y-2 mb-4">
+                              <div className="text-sm font-medium text-white/90">💡 学习要点：</div>
+                              {handResult.detailedAnalysis.learningPoints.slice(0, 2).map((point: any, index: number) => (
+                                <div key={index} className="bg-black/20 rounded px-3 py-2">
+                                  <div className="text-xs font-medium text-indigo-300 mb-1">{point.concept}</div>
+                                  <div className="text-xs text-white/80">{point.explanation}</div>
+                                  {point.example && (
+                                    <div className="text-xs text-white/60 mt-1 italic">例: {point.example}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          
+                          <div className="text-xs text-white/70 mt-3 p-2 bg-black/20 rounded">
+                            🎓 专业德州扑克教学分析系统
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* GTO Strategy Section - 增强视觉效果 */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">🎯</span>
+                        <h3 className="text-lg sm:text-xl font-bold text-white drop-shadow-sm">GTO策略建议</h3>
+                      </div>
+                      <div className="bg-gradient-to-br from-yellow-500/15 to-orange-500/10 rounded-xl p-4 sm:p-6 border border-yellow-400/30 shadow-lg">
+                        <div className="space-y-3 sm:space-y-4">
                           <div className="flex items-center justify-between">
-                            <span className="text-white/80 text-sm">推荐行动</span>
-                            <span className="text-yellow-300 font-semibold text-sm sm:text-base">
+                            <span className="text-white/90 text-sm sm:text-base font-medium">推荐行动</span>
+                            <span className="text-yellow-200 font-bold text-base sm:text-lg drop-shadow-sm">
                               {getGTORecommendation(gameState, handResult)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-white/80 text-sm">频率建议</span>
-                            <span className="text-white text-sm">
+                            <span className="text-white/90 text-sm sm:text-base font-medium">频率建议</span>
+                            <span className="text-white font-semibold text-sm sm:text-base">
                               {getGTOFrequency(gameState, handResult)}
                             </span>
                           </div>
-                          <div className="text-xs text-white/70 mt-2 p-2 bg-black/20 rounded">
+                          <div className="text-sm sm:text-base text-white/90 mt-3 p-3 bg-black/30 rounded-lg font-medium leading-relaxed">
                             💡 {getGTOReasoning(gameState, handResult)}
                           </div>
                         </div>

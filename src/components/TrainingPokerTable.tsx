@@ -4,6 +4,15 @@ import React from 'react'
 import { GameState, PlayerAction, ActionType, Player } from '@/types/poker'
 import { formatPot, formatStack, cardToString } from '@/lib/poker-utils'
 
+interface PlayerRanking {
+  playerId: string
+  playerName: string
+  rank: number
+  handDescription: string
+  isFolded?: boolean
+  finalAction?: string
+}
+
 interface TrainingPokerTableProps {
   gameState: GameState
   currentPlayerId?: string
@@ -11,6 +20,7 @@ interface TrainingPokerTableProps {
   showAllCards?: boolean
   heroId?: string
   readOnly?: boolean
+  handRankings?: PlayerRanking[]
 }
 
 const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
@@ -19,7 +29,8 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
   onPlayerAction,
   showAllCards = false,
   heroId,
-  readOnly = false
+  readOnly = false,
+  handRankings = []
 }) => {
   const currentPlayer = gameState.players.find(p => p.id === (currentPlayerId || heroId))
   const isCurrentPlayerTurn = !readOnly && currentPlayer && 
@@ -73,7 +84,7 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
     return positions[playerIndex] || positions[0]
   }
 
-  const renderCard = (card: string, isVisible: boolean = true) => {
+  const renderCard = (card: string, isVisible: boolean = true, isWinnerCard: boolean = false) => {
     if (!isVisible || card === 'back') {
       return (
         <div className="w-8 h-11 md:w-12 md:h-16 bg-gradient-to-br from-blue-900 to-blue-800 rounded border border-blue-700 flex items-center justify-center">
@@ -110,7 +121,9 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
     }
 
     return (
-      <div className="w-8 h-11 md:w-12 md:h-16 bg-white rounded border border-gray-300 flex flex-col items-center justify-between p-1 shadow-sm">
+      <div className={`w-8 h-11 md:w-12 md:h-16 bg-white rounded border-2 flex flex-col items-center justify-between p-1 shadow-sm ${
+        isWinnerCard ? 'border-yellow-400 shadow-lg shadow-yellow-400/50 ring-1 ring-yellow-400/30' : 'border-gray-300'
+      }`}>
         <div className={`text-sm md:text-base font-bold ${getSuitColor(suit)}`}>
           {rank || '?'}
         </div>
@@ -135,6 +148,10 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
     // 修复手牌显示逻辑：摊牌时显示所有未弃牌玩家的手牌，平时只显示英雄玩家手牌
     const shouldShowCards = (showAllCards && !player.folded) || player.id === currentPlayerId
     const isHero = player.id === currentPlayerId
+    
+    // 检查是否为获胜者
+    const playerRanking = handRankings.find(r => r.playerId === player.id);
+    const isWinner = playerRanking && playerRanking.rank === 1 && !player.folded;
 
     // 获取位置头像和颜色
     const getPositionAvatar = (position: string) => {
@@ -165,44 +182,94 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
       <div key={player.id}>
         {/* Player Info */}
         <div className={classes}>
-          {/* 当前行动玩家的增强光环效果 */}
+          {/* 当前行动玩家的增强提示效果 */}
           {isCurrentTurnPlayer && (
             <>
-              {/* 外圈动态光环 */}
-              <div className="absolute -inset-2 rounded-xl animate-ping">
-                <div className="w-full h-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-xl opacity-40"></div>
+              {/* 主要光环效果 - 呼吸动画 */}
+              <div className="absolute -inset-3 rounded-xl animate-pulse">
+                <div className="w-full h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 rounded-xl opacity-60 shadow-2xl"></div>
               </div>
-              {/* 内圈呼吸光环 */}
-              <div className="absolute -inset-1 rounded-xl animate-pulse">
-                <div className="w-full h-full bg-gradient-to-r from-blue-500 via-purple-600 to-blue-500 rounded-xl opacity-50"></div>
+              
+              {/* 强调边框 - 闪烁效果 */}
+              <div className="absolute -inset-1 rounded-xl">
+                <div className="w-full h-full border-4 border-yellow-400 rounded-xl animate-ping opacity-80"></div>
               </div>
-              {/* 旋转边框效果 */}
-              <div className="absolute inset-0 rounded-xl animate-spin" style={{ animationDuration: '3s' }}>
-                <div className="w-full h-full border-2 border-gradient rounded-xl opacity-60" style={{
-                  background: 'conic-gradient(from 0deg, #3b82f6, #8b5cf6, #06b6d4, #3b82f6)',
-                  padding: '2px',
-                  borderRadius: '12px'
-                }}>
-                  <div className="w-full h-full bg-transparent rounded-xl"></div>
+              
+              {/* 箭头指示器和操作提示 */}
+              <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 animate-bounce z-50">
+                <div className="flex flex-col items-center">
+                  {/* 动态箭头 */}
+                  <div className="text-yellow-400 text-xl animate-bounce">
+                    <div className="relative">
+                      👆
+                      <div className="absolute -inset-1 animate-ping">
+                        <div className="w-full h-full text-yellow-400 opacity-50">👆</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 操作提示标签 */}
+                  <div className="flex justify-center w-full">
+                    <div className="text-xs text-yellow-100 font-bold bg-gradient-to-r from-yellow-600 to-orange-600 px-3 py-1 rounded-full mt-1 shadow-lg border border-yellow-400 animate-pulse text-center">
+                      <span className="drop-shadow-sm">轮到决策</span>
+                    </div>
+                  </div>
+                  {/* 进度条效果 */}
+                  <div className="w-12 h-1 bg-black/40 rounded-full mt-1 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full animate-pulse"></div>
+                  </div>
                 </div>
               </div>
+              
+              {/* 辅助光效 */}
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent animate-pulse"></div>
             </>
           )}
           
           {/* 英雄玩家的特殊光环 */}
-          {isHero && (
-            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-400 rounded-xl opacity-20 animate-pulse"></div>
+          {isHero && !isCurrentTurnPlayer && !isWinner && (
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 via-cyan-500 to-blue-400 rounded-xl opacity-25 animate-pulse"></div>
+          )}
+
+          {/* 获胜者的增强特殊光环 */}
+          {isWinner && (
+            <>
+              {/* 外层大光环 */}
+              <div className="absolute -inset-4 bg-gradient-to-r from-yellow-400 via-orange-500 via-yellow-400 to-orange-500 rounded-xl opacity-70 animate-pulse shadow-2xl shadow-yellow-400/50"></div>
+              {/* 中层光环 */}
+              <div className="absolute -inset-3 bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 rounded-xl opacity-50 animate-ping shadow-xl shadow-yellow-400/40"></div>
+              {/* 内层光环 */}
+              <div className="absolute -inset-2 bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 rounded-xl opacity-40 animate-bounce"></div>
+              {/* 闪烁效果 */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-yellow-200 via-yellow-300 to-yellow-200 rounded-xl opacity-30"></div>
+            </>
           )}
 
           <div className={`
-            relative bg-black/60 backdrop-blur-md border-2 rounded-lg p-1.5 sm:p-2 min-w-16 sm:min-w-20 max-w-20 sm:max-w-24 transition-all duration-300
-            ${isCurrentTurnPlayer ? 'border-3 border-blue-400 shadow-lg ring-2 ring-blue-400/50 scale-102 bg-blue-900/20' : 'border-white/20 hover:border-white/40'}
-            ${isHero ? 'border-yellow-400 shadow-md ring-1 ring-yellow-400/40 bg-yellow-900/10' : ''}
+            relative bg-black/60 backdrop-blur-md border-2 rounded-lg p-1.5 sm:p-2 min-w-16 sm:min-w-20 max-w-20 sm:max-w-24 transition-all duration-300 shadow-xl
+            ${isCurrentTurnPlayer && !isWinner ? 'border-yellow-400 bg-gradient-to-br from-yellow-900/30 to-orange-900/20 scale-105 shadow-2xl shadow-yellow-400/50' : ''}
+            ${isWinner ? 'border-yellow-300 bg-gradient-to-br from-yellow-900/40 to-orange-900/30 scale-110 shadow-2xl shadow-yellow-400/60 ring-2 ring-yellow-400/50' : ''}
+            ${!isCurrentTurnPlayer && !isWinner ? 'border-white/20 hover:border-white/40' : ''}
+            ${isHero && !isCurrentTurnPlayer && !isWinner ? 'border-blue-400 shadow-md ring-1 ring-blue-400/40 bg-blue-900/10' : ''}
             ${player.folded ? 'opacity-40 grayscale' : ''}
           `}>
+            {/* Enhanced Winner Badge */}
+            {isWinner && (
+              <div className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-br from-yellow-400 via-orange-500 to-yellow-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-2xl animate-bounce border-3 border-yellow-300 ring-2 ring-yellow-400/50">
+                <span className="drop-shadow-lg">🏆</span>
+                <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full opacity-40 animate-ping"></div>
+              </div>
+            )}
+
             {/* Dealer Button */}
-            {isDealer && (
+            {isDealer && !isWinner && (
               <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-500 text-black rounded-full flex items-center justify-center text-xs font-bold shadow-md">
+                D
+              </div>
+            )}
+
+            {/* Dealer Button for Winner */}
+            {isDealer && isWinner && (
+              <div className="absolute -top-1 -left-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-500 text-black rounded-full flex items-center justify-center text-xs font-bold shadow-md">
                 D
               </div>
             )}
@@ -217,24 +284,26 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
             
                 {/* Player Name & Stack - 移动端优化 */}
             <div className="text-center mb-0.5 sm:mb-1">
-              <div className={`text-xs sm:text-xs font-medium truncate max-w-12 sm:max-w-14 md:max-w-16 mx-auto ${
-                isCurrentTurnPlayer ? 'text-blue-300' : 'text-white'
+              <div className={`text-xs sm:text-xs font-bold truncate max-w-12 sm:max-w-14 md:max-w-16 mx-auto transition-colors duration-300 ${
+                isWinner ? 'text-yellow-50 animate-pulse font-extrabold drop-shadow-lg' :
+                isCurrentTurnPlayer ? 'text-yellow-200 animate-pulse drop-shadow-sm' : 'text-white'
               }`}>
                 {player.name}
               </div>
-              <div className={`text-xs sm:text-xs ${
-                isCurrentTurnPlayer ? 'text-blue-200' : 'text-white/70'
+              <div className={`text-xs sm:text-xs font-medium transition-colors duration-300 ${
+                isWinner ? 'text-yellow-100 animate-pulse font-bold drop-shadow-md' :
+                isCurrentTurnPlayer ? 'text-yellow-300' : 'text-white/70'
               }`}>
                 ${formatStack(player.stack)}
               </div>
             </div>
 
-            {/* Player Cards - 移动端优化间距 */}
+            {/* Player Cards - 移动端优化间距，获胜者特效 */}
             {player.cards && player.cards.length > 0 && (
               <div className="flex space-x-1 sm:space-x-1.5 md:space-x-2 justify-center mb-0.5 sm:mb-1">
                 {player.cards?.map((card, cardIndex) => (
                   <div key={cardIndex}>
-                    {renderCard(cardToString(card), shouldShowCards)}
+                    {renderCard(cardToString(card), shouldShowCards, isWinner)}
                   </div>
                 ))}
               </div>
@@ -251,22 +320,119 @@ const TrainingPokerTable: React.FC<TrainingPokerTableProps> = ({
               </div>
             )}
 
-            {/* 状态标识 - 简化版 */}
-            {player.folded && (
-              <div className="text-center">
-                <div className="text-xs text-red-400">❌ 弃牌</div>
-              </div>
-            )}
-            {player.isAllIn && (
-              <div className="text-center">
-                <div className="text-xs text-purple-400">🚨 全下</div>
-              </div>
-            )}
-            {isHero && !player.folded && (
-              <div className="text-center">
-                <div className="text-xs text-yellow-400">👑</div>
-              </div>
-            )}
+            {/* 状态标识和手牌排名 */}
+            {(() => {
+              const playerRanking = handRankings.find(r => r.playerId === player.id);
+              
+              if (player.folded) {
+                return (
+                  <div className="text-center space-y-0.5">
+                    <div className="text-xs text-red-400">❌ 弃牌</div>
+                    {playerRanking?.finalAction && (
+                      <div className="text-xs text-gray-400">{playerRanking.finalAction}</div>
+                    )}
+                  </div>
+                );
+              }
+              
+              if (player.isAllIn) {
+                return (
+                  <div className="text-center space-y-0.5">
+                    <div className="text-xs text-purple-400">🚨 全下</div>
+                    {playerRanking && (
+                      <div className="text-center space-y-0.5">
+                        {playerRanking.rank === 1 ? (
+                          <>
+                            {/* 获胜者光环效果 */}
+                            <div className="relative">
+                              <div className="absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 rounded-full opacity-50 animate-pulse"></div>
+                              <div className="relative text-sm px-2 py-1 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold border-2 border-yellow-300 animate-bounce shadow-lg">
+                                🏆 #1 👑
+                              </div>
+                            </div>
+                            <div className="text-xs text-yellow-200 font-medium animate-pulse">
+                              {playerRanking.handDescription}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-xs px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-300 border border-gray-500/40">
+                              #{playerRanking.rank}
+                            </div>
+                            <div className="text-xs text-white/70">{playerRanking.handDescription}</div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              
+              if (isHero && !player.folded) {
+                return (
+                  <div className="text-center space-y-0.5">
+                    <div className="text-xs text-yellow-400">👑</div>
+                    {playerRanking && (
+                      <div className="text-center space-y-0.5">
+                        {playerRanking.rank === 1 ? (
+                          <>
+                            {/* 获胜者光环效果 - 英雄版本 */}
+                            <div className="relative">
+                              <div className="absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 rounded-full opacity-60 animate-pulse"></div>
+                              <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 via-cyan-500 to-blue-400 rounded-full opacity-40 animate-ping"></div>
+                              <div className="relative text-sm px-2 py-1 rounded-full bg-gradient-to-r from-yellow-500 via-orange-500 to-yellow-600 text-white font-bold border-2 border-yellow-300 animate-bounce shadow-2xl">
+                                🏆 获胜 👑
+                              </div>
+                            </div>
+                            <div className="text-xs text-yellow-200 font-bold animate-pulse">
+                              {playerRanking.handDescription}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-xs px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-300 border border-gray-500/40">
+                              #{playerRanking.rank}
+                            </div>
+                            <div className="text-xs text-white/70">{playerRanking.handDescription}</div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              
+              // 普通玩家显示排名（如果有）
+              if (playerRanking && !player.folded) {
+                return (
+                  <div className="text-center space-y-0.5">
+                    {playerRanking.rank === 1 ? (
+                      <>
+                        {/* 获胜者光环效果 - 普通玩家版本 */}
+                        <div className="relative">
+                          <div className="absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 rounded-full opacity-50 animate-pulse"></div>
+                          <div className="relative text-sm px-2 py-1 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold border-2 border-yellow-300 animate-bounce shadow-lg">
+                            🏆 #1 👑
+                          </div>
+                        </div>
+                        <div className="text-xs text-yellow-200 font-medium animate-pulse">
+                          {playerRanking.handDescription}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-xs px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-300 border border-gray-500/40">
+                          #{playerRanking.rank}
+                        </div>
+                        <div className="text-xs text-white/70">{playerRanking.handDescription}</div>
+                      </>
+                    )}
+                  </div>
+                );
+              }
+              
+              return null;
+            })()}
           </div>
         </div>
 

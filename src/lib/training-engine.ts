@@ -120,7 +120,7 @@ export class TrainingEngine {
   // 生成随机手牌
   private static generateRandomHoleCards(): [Card, Card] {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
-    const ranks: Rank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+    const ranks: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
     
     const card1: Card = {
       suit: suits[Math.floor(Math.random() * suits.length)],

@@ -70,7 +70,7 @@ export class HandRangeManager {
     const endValue = rankValue(endRank as any);
     
     for (let val = Math.max(startValue, endValue); val >= Math.min(startValue, endValue); val--) {
-      const rank = Object.keys({ 'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
+      const rank = Object.keys({ 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
         .find(key => rankValue(key as any) === val);
       if (rank) {
         range[`${rank}${rank}`] = 1;
@@ -88,7 +88,7 @@ export class HandRangeManager {
     const endValue = rankValue(endLowRank as any);
     
     for (let val = Math.max(startValue, endValue); val >= Math.min(startValue, endValue); val--) {
-      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
+      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
         .find(key => rankValue(key as any) === val);
       if (rank) {
         range[`${highRank}${rank}s`] = 1;
@@ -106,7 +106,7 @@ export class HandRangeManager {
     const endValue = rankValue(endLowRank as any);
     
     for (let val = Math.max(startValue, endValue); val >= Math.min(startValue, endValue); val--) {
-      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
+      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
         .find(key => rankValue(key as any) === val);
       if (rank) {
         range[`${highRank}${rank}o`] = 1;
@@ -120,7 +120,7 @@ export class HandRangeManager {
     const startValue = rankValue(rank as any);
     
     for (let val = 14; val >= startValue; val--) {
-      const pairRank = Object.keys({ 'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
+      const pairRank = Object.keys({ 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
         .find(key => rankValue(key as any) === val);
       if (pairRank) {
         range[`${pairRank}${pairRank}`] = 1;
@@ -136,7 +136,7 @@ export class HandRangeManager {
     const highValue = rankValue(highRank as any);
     
     for (let val = highValue - 1; val >= startValue; val--) {
-      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
+      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
         .find(key => rankValue(key as any) === val);
       if (rank) {
         range[`${highRank}${rank}s`] = 1;
@@ -152,7 +152,7 @@ export class HandRangeManager {
     const highValue = rankValue(highRank as any);
     
     for (let val = highValue - 1; val >= startValue; val--) {
-      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
+      const rank = Object.keys({ 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 })
         .find(key => rankValue(key as any) === val);
       if (rank) {
         range[`${highRank}${rank}o`] = 1;

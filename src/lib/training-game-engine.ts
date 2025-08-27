@@ -1,6 +1,13 @@
-import { GameState, Player, ActionType, Card } from '@/types/poker'
+import { GameState, Player, ActionType, Card, Rank, HandStrengthResult, Position } from '@/types/poker'
 import { stringToCard } from '@/lib/poker-utils'
 import { HandEvaluator } from '@/lib/hand-evaluator'
+import { ActionRecorder, DetailedActionRecord } from '@/lib/action-recorder'
+import { SidePotCalculator, PlayerBetInfo, SidePotCalculationResult } from '@/lib/side-pot-calculator'
+import { ProfessionalHandAnalyzer, ProfessionalHandAnalysis } from '@/lib/professional-hand-analyzer'
+import { ShowdownAnalysisReporter, ShowdownAnalysisReport } from '@/lib/showdown-analysis-reporter'
+import { DeckManager } from '@/lib/deck-manager'
+import { PokerHandResult, PokerHandResultGenerator } from '@/lib/poker-hand-result'
+import { PokerPlayerRanking } from '@/lib/standard-poker-evaluator'
 
 interface TrainingGameState extends GameState {
   isTraining: boolean
@@ -11,6 +18,7 @@ interface TrainingGameState extends GameState {
     correctDecisions: number
     currentStreak: number
   }
+  actionRecorder: ActionRecorder // 操作记录器
 }
 
 interface TrainingScenario {
@@ -53,14 +61,28 @@ export interface GameProgressResult {
 }
 
 interface HandResult {
-  winnerId: string  // 具体获胜者的ID
-  winnerName: string  // 获胜者姓名
-  winAmount: number
-  showdown: boolean
-  heroResult: 'win' | 'lose' | 'tie'
-  analysis: string
-  // 兼容性字段
-  winner: string
+  // === 🏆 基于手牌强度的胜负判定 ===
+  handWinnerId: string              // 手牌最强玩家ID → 界面金色特效
+  handWinnerName: string           // 手牌获胜者姓名  
+  heroHandResult: 'win' | 'lose' | 'tie'  // 英雄手牌结果 → 顶部成功/失败
+  
+  // === 📋 手牌排名信息 ===
+  handRankings?: PokerPlayerRanking[]  // 完整手牌排名列表
+  
+  // === 💰 金额分配结果 ===
+  winAmount: number            // 兼容性：总奖池金额
+  sidePotResult?: SidePotCalculationResult  // 边池计算结果
+  
+  // === 📊 分析和其他信息 ===
+  showdown: boolean           // 是否摊牌
+  analysis: string           // 综合分析报告
+  
+  // === 兼容性字段（保持现有界面不变） ===
+  winner: string            // 兼容字段：等同于handWinnerId
+  winnerId: string          // 兼容字段：等同于handWinnerId
+  winnerName: string        // 兼容字段：等同于handWinnerName
+  heroResult: 'win' | 'lose' | 'tie'  // 兼容字段：等同于heroHandResult
+  detailedAnalysis?: ShowdownAnalysisReport  // 详细摊牌分析报告
 }
 
 export class TrainingGameEngine {
@@ -70,31 +92,56 @@ export class TrainingGameEngine {
 
   // 完整的52张牌池
   private static readonly SUITS = ['h', 'd', 'c', 's'] // 红桃、方块、梅花、黑桃
-  private static readonly RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
+  private static readonly RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
 
   /**
-   * 生成完整的52张牌
+   * 将Card对象转换为字符串表示
    */
-  private static generateDeck(): string[] {
-    const deck: string[] = []
-    for (const rank of this.RANKS) {
-      for (const suit of this.SUITS) {
-        deck.push(rank + suit)
-      }
-    }
-    return deck
+  private static cardToString(card: Card): string {
+    const suitMap = {
+      'hearts': 'h',
+      'diamonds': 'd', 
+      'clubs': 'c',
+      'spades': 's'
+    };
+    return `${card.rank}${suitMap[card.suit]}`;
   }
 
   /**
-   * Fisher-Yates 洗牌算法
+   * 批量将Card对象转换为字符串数组
    */
-  private static shuffleDeck(deck: string[]): string[] {
-    const shuffled = [...deck]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  private static cardsToStrings(cards: Card[]): string[] {
+    return cards.map(card => this.cardToString(card));
+  }
+
+  /**
+   * 使用DeckManager安全生成牌组场景
+   */
+  private static createSafeTrainingDeck(
+    requiredCards: Card[] = []
+  ): {
+    deck: DeckManager;
+    isValid: boolean;
+    errors: string[];
+  } {
+    const deck = new DeckManager();
+    const errors: string[] = [];
+    
+    try {
+      // 标记必需的牌为已使用
+      if (requiredCards.length > 0) {
+        if (!deck.markCardsAsUsed(requiredCards)) {
+          errors.push('必需牌有重复或无效');
+        }
+      }
+      
+      const isValid = deck.validateNoDuplicates() && errors.length === 0;
+      
+      return { deck, isValid, errors };
+    } catch (error) {
+      errors.push(`创建训练牌组失败: ${error}`);
+      return { deck, isValid: false, errors };
     }
-    return shuffled
   }
 
   /**
@@ -106,7 +153,17 @@ export class TrainingGameEngine {
     description: string
     recommendedAction: { action: ActionType, reasoning: string, frequency: number }
   } {
-    const deck = this.shuffleDeck(this.generateDeck())
+    const { deck, isValid } = this.createSafeTrainingDeck();
+    
+    if (!isValid) {
+      console.warn('随机场景生成失败，使用默认场景');
+      return {
+        heroCards: ['As', 'Kh'],
+        communityCards: ['Qd', 'Jc', '10s'],
+        description: '默认训练场景',
+        recommendedAction: { action: 'raise', reasoning: '强牌应该价值下注', frequency: 85 }
+      };
+    }
     
     // 扩展的训练场景类型 - 更多样化
     const scenarioTypes = [
@@ -182,31 +239,26 @@ export class TrainingGameEngine {
     // 生成多样化的手牌
     let heroCards: string[]
     let communityCards: string[]
-    let cardIndex = 0
 
-    // 先生成英雄手牌
-    heroCards = [deck[cardIndex++], deck[cardIndex++]]
+    try {
+      // 先生成英雄手牌
+      const heroCardObjs = deck.dealHoleCards();
+      heroCards = this.cardsToStrings(heroCardObjs);
 
-    // 根据选中的场景类型生成对应的公共牌
-    switch (selectedScenario.type) {
-      case 'premium_hand':
-        communityCards = this.generatePremiumHandBoard(heroCards, deck, cardIndex)
-        break
-      case 'strong_hand':
-        communityCards = this.generateStrongHandBoard(heroCards, deck, cardIndex)
-        break
-      case 'medium_hand':
-        communityCards = this.generateMediumHandBoard(heroCards, deck, cardIndex)
-        break
-      case 'draw_hand':
-        communityCards = this.generateDrawHandBoard(heroCards, deck, cardIndex)
-        break
-      case 'marginal_hand':
-        communityCards = this.generateMarginalHandBoard(heroCards, deck, cardIndex)
-        break
-      default: // weak_hand
-        communityCards = this.generateWeakHandBoard(heroCards, deck, cardIndex)
-        break
+      // 根据选中的场景类型生成对应的公共牌（简化版本，避免复杂的board生成）
+      const communityCardsCount = 3 + Math.floor(Math.random() * 3);
+      const communityCardObjs = deck.dealCards(communityCardsCount);
+      communityCards = this.cardsToStrings(communityCardObjs);
+
+    } catch (error) {
+      console.error('随机场景发牌失败:', error);
+      // 返回安全默认场景
+      return {
+        heroCards: ['As', 'Kh'],
+        communityCards: ['Qd', 'Jc', '10s'],
+        description: '默认训练场景',
+        recommendedAction: { action: 'raise', reasoning: '强牌应该价值下注', frequency: 85 }
+      };
     }
 
     // 随机选择描述
@@ -396,7 +448,7 @@ export class TrainingGameEngine {
         if (rank === 'K') return 13  
         if (rank === 'Q') return 12
         if (rank === 'J') return 11
-        if (rank === 'T') return 10
+        if (rank === '10') return 10
         return parseInt(rank)
       })
       
@@ -413,7 +465,7 @@ export class TrainingGameEngine {
         else if (value === 13) rank = 'K'
         else if (value === 12) rank = 'Q'
         else if (value === 11) rank = 'J'
-        else if (value === 10) rank = 'T'
+        else if (value === 10) rank = '10'
         
         if (!heroRanks.includes(rank)) {
           targetRanks.push(rank)
@@ -473,7 +525,7 @@ export class TrainingGameEngine {
     if (rank === 'K') return 13  
     if (rank === 'Q') return 12
     if (rank === 'J') return 11
-    if (rank === 'T') return 10
+    if (rank === '10') return 10
     return parseInt(rank)
   }
 
@@ -518,7 +570,18 @@ export class TrainingGameEngine {
     description: string
     recommendedAction: { action: ActionType, reasoning: string, frequency: number }
   } {
-    const deck = this.shuffleDeck(this.generateDeck())
+    const { deck, isValid } = this.createSafeTrainingDeck();
+    
+    if (!isValid) {
+      console.warn('位置训练场景生成失败，使用默认场景');
+      return {
+        heroCards: ['As', 'Kh'],
+        communityCards: ['Qd', 'Jc', '10s'],
+        description: '默认位置训练',
+        recommendedAction: { action: 'raise', reasoning: '强牌应该价值下注', frequency: 85 }
+      };
+    }
+    
     const positions = ['UTG', 'MP', 'CO', 'BTN', 'SB', 'BB']
     const position = positions[Math.floor(Math.random() * positions.length)]
     
@@ -552,15 +615,29 @@ export class TrainingGameEngine {
       frequency = handStrength > 0.6 ? 70 : 55
     }
 
-    const heroCards = [deck[0], deck[1]]
-    const communityCardsCount = 3 + Math.floor(Math.random() * 3)
-    const communityCards = deck.slice(2, 2 + communityCardsCount)
+    try {
+      const heroCardObjs = deck.dealHoleCards();
+      const communityCardsCount = 3 + Math.floor(Math.random() * 3);
+      const communityCardObjs = deck.dealCards(communityCardsCount);
+      
+      // Convert Card objects to strings
+      const heroCards = this.cardsToStrings(heroCardObjs);
+      const communityCards = this.cardsToStrings(communityCardObjs);
 
-    return {
-      heroCards,
-      communityCards,
-      description,
-      recommendedAction: { action, reasoning, frequency }
+      return {
+        heroCards,
+        communityCards,
+        description,
+        recommendedAction: { action, reasoning, frequency }
+      };
+    } catch (error) {
+      console.error('位置训练场景发牌失败:', error);
+      return {
+        heroCards: ['As', 'Kh'],
+        communityCards: ['Qd', 'Jc', '10s'],
+        description: '默认位置训练',
+        recommendedAction: { action: 'raise', reasoning: '强牌应该价值下注', frequency: 85 }
+      };
     }
   }
 
@@ -573,14 +650,27 @@ export class TrainingGameEngine {
     description: string
     recommendedAction: { action: ActionType, reasoning: string, frequency: number }
   } {
-    const deck = this.shuffleDeck(this.generateDeck())
-    const isDeepStack = Math.random() < 0.5
+    const { deck, isValid } = this.createSafeTrainingDeck();
     
-    const heroCards = [deck[0], deck[1]]
-    const communityCardsCount = 3 + Math.floor(Math.random() * 3)
-    const communityCards = deck.slice(2, 2 + communityCardsCount)
+    if (!isValid) {
+      return {
+        heroCards: ['As', 'Kh'],
+        communityCards: ['Qd', 'Jc', '10s'],
+        description: '默认深度训练',
+        recommendedAction: { action: 'raise', reasoning: '强牌应该价值下注', frequency: 85 }
+      };
+    }
+    
+    const isDeepStack = Math.random() < 0.5;
+    
+    try {
+      const heroCardObjs = deck.dealHoleCards();
+      const heroCards = this.cardsToStrings(heroCardObjs);
+      const communityCardsCount = 3 + Math.floor(Math.random() * 3);
+      const communityCardObjs = deck.dealCards(communityCardsCount);
+      const communityCards = this.cardsToStrings(communityCardObjs);
 
-    if (isDeepStack) {
+      if (isDeepStack) {
       // 深资源 - 更复杂的策略
       return {
         heroCards,
@@ -591,19 +681,28 @@ export class TrainingGameEngine {
           reasoning: '深资源允许更多复杂的后续操作',
           frequency: 65
         }
-      }
+      };
     } else {
-      // 浅资源 - 更直接的策略
-      return {
-        heroCards,
-        communityCards,
-        description: '浅资源场景 - 简化决策树',
-        recommendedAction: {
-          action: Math.random() < 0.6 ? 'raise' : Math.random() < 0.8 ? 'call' : 'fold',
-          reasoning: '浅资源需要更直接的价值导向决策',
-          frequency: 75
-        }
+        // 浅资源 - 更直接的策略
+        return {
+          heroCards,
+          communityCards,
+          description: '浅资源场景 - 简化决策树',
+          recommendedAction: {
+            action: Math.random() < 0.6 ? 'raise' : Math.random() < 0.8 ? 'call' : 'fold',
+            reasoning: '浅资源需要更直接的价值导向决策',
+            frequency: 75
+          }
+        };
       }
+    } catch (error) {
+      console.error('深度训练场景发牌失败:', error);
+      return {
+        heroCards: ['As', 'Kh'],
+        communityCards: ['Qd', 'Jc', '10s'],
+        description: '默认深度训练',
+        recommendedAction: { action: 'raise', reasoning: '强牌应该价值下注', frequency: 85 }
+      };
     }
   }
 
@@ -818,8 +917,32 @@ export class TrainingGameEngine {
     amount?: number
   ): Promise<GameProgressResult> {
     
+    // 获取英雄玩家
+    const heroPlayer = gameState.players.find(p => p.id === 'hero')
+    if (!heroPlayer) {
+      throw new Error('Hero player not found')
+    }
+    
+    // 记录玩家操作前的状态
+    const potBefore = gameState.pot
+    const stackBefore = heroPlayer.stack
+    
     // 1. Update game state with player action
     let updatedGameState = this.updatePlayerAction(gameState, 'hero', actionType, amount)
+    
+    // 记录玩家操作
+    const heroAfterAction = updatedGameState.players.find(p => p.id === 'hero')
+    if (heroAfterAction) {
+      updatedGameState.actionRecorder.recordPlayerAction(
+        heroAfterAction,
+        actionType,
+        amount || 0,
+        updatedGameState.stage,
+        potBefore,
+        updatedGameState.pot,
+        stackBefore
+      )
+    }
     
     // 1.5. Update current player to next active player (unless player folded)
     if (actionType !== 'fold') {
@@ -841,15 +964,43 @@ export class TrainingGameEngine {
 
     // 3. Check if hand is complete after player action
     if (actionType === 'fold') {
+      // 记录手牌结束
+      const remainingPlayer = updatedGameState.players.find(p => p.id !== 'hero' && !p.folded)
+      if (remainingPlayer) {
+        updatedGameState.actionRecorder.recordHandEnd(
+          remainingPlayer.id,
+          remainingPlayer.name,
+          updatedGameState.pot,
+          'fold'
+        )
+      }
+      
+      // 🎯 使用新系统处理弃牌结束情况
+      const foldResult = PokerHandResultGenerator.generateHandResult(
+        updatedGameState.players,
+        updatedGameState.communityCards,
+        updatedGameState.pot,
+        false // 非摊牌
+      )
+      
       return {
         gameState: updatedGameState,
         isHandComplete: true,
         handResult: {
-          winner: 'opponents',
+          winnerId: foldResult.handWinnerId,
+          winnerName: foldResult.handWinnerName,
+          heroResult: 'lose', // 英雄弃牌必然失败
+          
+          handRankings: foldResult.handRankings,
           winAmount: updatedGameState.pot,
+          sidePotResult: foldResult.sidePotResult,
+          
           showdown: false,
-          heroResult: 'lose',
-          analysis: '弃牌结束手牌'
+          analysis: foldResult.combinedAnalysis,
+          
+          // 兼容性
+          winner: 'opponents',
+          detailedAnalysis: this.generateDetailedAnalysisReport(foldResult)
         },
         nextAction: 'hand_complete'
       }
@@ -919,6 +1070,10 @@ export class TrainingGameEngine {
         return this.completeHand(currentState, 'hero')
       }
       
+      // 记录AI操作前的状态
+      const aiPotBefore = currentState.pot
+      const aiStackBefore = currentPlayer.stack
+      
       // 处理AI玩家操作
       const aiAction = this.getAIAction(currentPlayer, currentState)
       
@@ -933,6 +1088,20 @@ export class TrainingGameEngine {
       
       // 更新游戏状态
       currentState = this.updatePlayerAction(currentState, currentPlayer.id, aiAction.type, aiAction.amount)
+      
+      // 记录AI操作到操作历史中
+      const aiPlayerAfterAction = currentState.players[currentPlayerIndex]
+      if (aiPlayerAfterAction) {
+        currentState.actionRecorder.recordPlayerAction(
+          aiPlayerAfterAction,
+          aiAction.type,
+          aiAction.amount || 0,
+          currentState.stage,
+          aiPotBefore,
+          currentState.pot,
+          aiStackBefore
+        )
+      }
       
       // 添加短暂延迟让AI行动更自然，但保持快速训练体验
       await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 100)) // 100-200ms随机延迟
@@ -1007,11 +1176,37 @@ export class TrainingGameEngine {
   private static dealFlop(gameState: TrainingGameState): GameProgressResult {
     const newState = { ...gameState }
     newState.stage = 'flop'
-    newState.communityCards = ['Ad', 'Kd', '7c'].map(cardString => stringToCard(cardString)) // Fixed for training scenario
+    
+    // 收集已使用的牌，避免重复
+    const usedCards: Card[] = []
+    newState.players.forEach(player => {
+      if (player.cards) {
+        usedCards.push(...player.cards)
+      }
+    })
+    usedCards.push(...newState.communityCards)
+    
+    // 如果已经有公共牌，使用现有的，否则生成新的
+    if (newState.communityCards.length >= 3) {
+      // 已经有翻牌了，保持不变
+    } else {
+      // 生成新的翻牌，确保不与已用牌重复
+      const newFlop = this.generateSafeCards(3, usedCards)
+      newState.communityCards = [...newState.communityCards, ...newFlop]
+    }
+    
     newState.currentPlayer = 1 // Small blind acts first post-flop
     
     // Reset betting
     newState.players.forEach(p => p.currentBet = 0)
+    
+    // 记录街道进展
+    newState.actionRecorder.recordStreetProgression(
+      'preflop',
+      'flop',
+      newState.communityCards.length,
+      newState.pot
+    )
 
     return {
       gameState: newState,
@@ -1022,15 +1217,75 @@ export class TrainingGameEngine {
   }
 
   /**
+   * 生成安全的牌（不与已使用牌重复）
+   */
+  private static generateSafeCards(count: number, usedCards: Card[]): Card[] {
+    const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'] as const
+    const suits = ['hearts', 'diamonds', 'clubs', 'spades'] as const
+    
+    const safeCards: Card[] = []
+    
+    // 辅助函数检查牌是否已被使用
+    const isCardUsed = (rank: string, suit: string): boolean => {
+      return usedCards.some(card => card.rank === rank && card.suit === suit)
+    }
+    
+    let attempts = 0
+    while (safeCards.length < count && attempts < 1000) {
+      const rank = ranks[Math.floor(Math.random() * ranks.length)]
+      const suit = suits[Math.floor(Math.random() * suits.length)]
+      
+      if (!isCardUsed(rank, suit) && !safeCards.some(card => card.rank === rank && card.suit === suit)) {
+        safeCards.push({ rank, suit })
+      }
+      
+      attempts++
+    }
+    
+    if (safeCards.length < count) {
+      console.warn(`只能生成${safeCards.length}/${count}张安全牌，可能牌组不足`)
+    }
+    
+    return safeCards
+  }
+
+  /**
    * Deal turn card
    */
   private static dealTurn(gameState: TrainingGameState): GameProgressResult {
     const newState = { ...gameState }
     newState.stage = 'turn'
-    newState.communityCards = [...gameState.communityCards, stringToCard('5h')]
+    
+    // 收集已使用的牌，避免重复
+    const usedCards: Card[] = []
+    newState.players.forEach(player => {
+      if (player.cards) {
+        usedCards.push(...player.cards)
+      }
+    })
+    usedCards.push(...newState.communityCards)
+    
+    // 如果已经有4张公共牌，保持不变，否则添加转牌
+    if (newState.communityCards.length >= 4) {
+      // 已经有转牌了，保持不变
+    } else {
+      // 生成安全的转牌
+      const turnCard = this.generateSafeCards(1, usedCards)
+      if (turnCard.length > 0) {
+        newState.communityCards = [...gameState.communityCards, turnCard[0]]
+      }
+    }
+    
     newState.currentPlayer = 1
-
     newState.players.forEach(p => p.currentBet = 0)
+    
+    // 记录街道进展
+    newState.actionRecorder.recordStreetProgression(
+      'flop',
+      'turn',
+      newState.communityCards.length,
+      newState.pot
+    )
 
     return {
       gameState: newState,
@@ -1046,10 +1301,37 @@ export class TrainingGameEngine {
   private static dealRiver(gameState: TrainingGameState): GameProgressResult {
     const newState = { ...gameState }
     newState.stage = 'river'
-    newState.communityCards = [...gameState.communityCards, stringToCard('2s')]
+    
+    // 收集已使用的牌，避免重复
+    const usedCards: Card[] = []
+    newState.players.forEach(player => {
+      if (player.cards) {
+        usedCards.push(...player.cards)
+      }
+    })
+    usedCards.push(...newState.communityCards)
+    
+    // 如果已经有5张公共牌，保持不变，否则添加河牌
+    if (newState.communityCards.length >= 5) {
+      // 已经有河牌了，保持不变
+    } else {
+      // 生成安全的河牌
+      const riverCard = this.generateSafeCards(1, usedCards)
+      if (riverCard.length > 0) {
+        newState.communityCards = [...gameState.communityCards, riverCard[0]]
+      }
+    }
+    
     newState.currentPlayer = 1
-
     newState.players.forEach(p => p.currentBet = 0)
+    
+    // 记录街道进展
+    newState.actionRecorder.recordStreetProgression(
+      'turn',
+      'river',
+      newState.communityCards.length,
+      newState.pot
+    )
 
     return {
       gameState: newState,
@@ -1070,40 +1352,100 @@ export class TrainingGameEngine {
 
     switch (result) {
       case 'hero':
+        // 🎯 使用新系统处理英雄获胜情况
+        const heroResult = PokerHandResultGenerator.generateHandResult(
+          gameState.players,
+          gameState.communityCards,
+          gameState.pot,
+          false // 非摊牌
+        )
+        
         handResult = {
+          // 新接口字段
+          handWinnerId: 'hero',
+          handWinnerName: '主玩家',
+          heroHandResult: 'win', // 英雄获胜
+          
+          handRankings: heroResult.handRankings,
+          winAmount: gameState.pot,
+          sidePotResult: heroResult.sidePotResult,
+          
+          showdown: false,
+          analysis: heroResult.combinedAnalysis,
+          
+          // 兼容性字段
+          winner: 'hero',
           winnerId: 'hero',
           winnerName: '主玩家',
-          winner: 'hero', // 兼容性
-          winAmount: gameState.pot,
-          showdown: false,
           heroResult: 'win',
-          analysis: '对手退出，你获得奖池'
+          detailedAnalysis: this.generateDetailedAnalysisReport(heroResult)
         }
         break
       case 'opponents':
-        // 找到第一个未弃牌的非hero玩家作为获胜者
-        const remainingOpponent = gameState.players.find(p => p.id !== 'hero' && !p.folded)
+        // 🎯 使用新系统处理弃牌情况
+        const opponentsResult = PokerHandResultGenerator.generateHandResult(
+          gameState.players,
+          gameState.communityCards,
+          gameState.pot,
+          false // 非摊牌
+        )
+        
         handResult = {
-          winnerId: remainingOpponent?.id || 'ai-1',
-          winnerName: remainingOpponent?.name || 'AI玩家',
-          winner: 'opponents', // 兼容性
+          // 新接口字段
+          handWinnerId: opponentsResult.handWinnerId,
+          handWinnerName: opponentsResult.handWinnerName,
+          heroHandResult: 'lose', // 英雄弃牌必然失败
+          
+          handRankings: opponentsResult.handRankings,
           winAmount: gameState.pot,
+          sidePotResult: opponentsResult.sidePotResult,
+          
           showdown: false,
+          analysis: opponentsResult.combinedAnalysis,
+          
+          // 兼容性字段
+          winner: 'opponents',
+          winnerId: opponentsResult.handWinnerId,
+          winnerName: opponentsResult.handWinnerName,
           heroResult: 'lose',
-          analysis: '你退出，对手获得奖池'
+          detailedAnalysis: this.generateDetailedAnalysisReport(opponentsResult)
         }
         break
       case 'showdown':
-        // 使用真实组合强度比较进行结算
-        const showdownResult = this.evaluateShowdown(gameState)
+        // 🎯 使用新的标准德州扑克胜负判定系统
+        const standardResult = PokerHandResultGenerator.generateHandResult(
+          gameState.players,
+          gameState.communityCards,
+          gameState.pot,
+          true // 摊牌
+        )
+        
+        // 生成详细分析报告（保持兼容性）
+        const detailedAnalysis = this.generateDetailedAnalysisReport(standardResult)
+        
         handResult = {
-          winnerId: showdownResult.winnerId,
-          winnerName: showdownResult.winnerName,
-          winner: showdownResult.winnerId, // 兼容性
+          // 基于手牌强度的胜负判定 (新接口)
+          handWinnerId: standardResult.handWinnerId,
+          handWinnerName: standardResult.handWinnerName,
+          heroHandResult: standardResult.heroHandResult,
+          
+          // 手牌排名信息
+          handRankings: standardResult.handRankings,
+          
+          // 金额分配结果
           winAmount: gameState.pot,
+          sidePotResult: standardResult.sidePotResult,
+          
+          // 分析信息
           showdown: true,
-          heroResult: showdownResult.heroResult,
-          analysis: showdownResult.analysis
+          analysis: standardResult.combinedAnalysis,
+          
+          // 兼容性字段 (旧接口)
+          winner: standardResult.handWinnerId,
+          winnerId: standardResult.handWinnerId,
+          winnerName: standardResult.handWinnerName,
+          heroResult: standardResult.heroHandResult,
+          detailedAnalysis
         }
         break
     }
@@ -1176,25 +1518,201 @@ export class TrainingGameEngine {
   }
 
   /**
-   * Get AI action (simplified decision making)
+   * Get AI action (professional decision making)
    */
   private static getAIAction(player: Player, gameState: TrainingGameState): { type: ActionType, amount?: number } {
+    // 检查是否有手牌
+    if (!player.cards || player.cards.length !== 2) {
+      console.warn(`AI玩家 ${player.id} 没有手牌，执行保守决策`)
+      return { type: 'fold' }
+    }
+
     const currentBet = Math.max(...gameState.players.map(p => p.currentBet))
     const callAmount = currentBet - player.currentBet
+    const activePlayers = gameState.players.filter(p => p.isActive && !p.folded).length
     
-    // Simplified AI logic
+    try {
+      // 使用专业手牌分析器
+      const analysis: ProfessionalHandAnalysis = ProfessionalHandAnalyzer.analyzeHand(
+        player.cards as [Card, Card],
+        gameState.communityCards,
+        gameState.stage,
+        player.position,
+        player.stack,
+        gameState.pot,
+        callAmount,
+        activePlayers - 1 // 对手数量（排除自己）
+      )
+
+      // 基于专业分析做决策
+      return this.makeAIDecision(analysis, player, gameState, callAmount)
+      
+    } catch (error) {
+      console.error(`AI分析失败，使用备用逻辑:`, error)
+      // 备用逻辑：保守决策
+      return this.getFallbackAIAction(player, gameState, callAmount)
+    }
+  }
+
+  /**
+   * 基于专业分析做AI决策
+   */
+  private static makeAIDecision(
+    analysis: ProfessionalHandAnalysis,
+    player: Player,
+    gameState: TrainingGameState,
+    callAmount: number
+  ): { type: ActionType, amount?: number } {
+    
+    const recommendation = analysis.recommendation
+    const random = Math.random() * 0.2 + 0.9 // 0.9-1.1 随机因子，增加不可预测性
+    const confidence = recommendation.confidence * random
+    
+    // 基于推荐动作和信心度做决策
+    switch (recommendation.action) {
+      case 'fold':
+        return { type: 'fold' }
+        
+      case 'call':
+        if (callAmount === 0) {
+          return { type: 'check' }
+        } else if (callAmount <= player.stack) {
+          // 有一定概率根据信心度变成加注
+          if (confidence > 80 && Math.random() < 0.3) {
+            const raiseAmount = Math.min(
+              gameState.minRaise + callAmount,
+              player.stack
+            )
+            return { type: 'raise', amount: raiseAmount }
+          }
+          return { type: 'call' }
+        } else {
+          return { type: 'all-in', amount: player.stack }
+        }
+        
+      case 'raise':
+        if (callAmount === 0) {
+          // 可以下注
+          const betSize = this.calculateBetSize(analysis, gameState.pot, player.stack)
+          if (betSize >= gameState.minRaise) {
+            return { type: 'bet', amount: betSize }
+          } else {
+            return { type: 'check' }
+          }
+        } else {
+          // 需要加注
+          const raiseSize = this.calculateRaiseSize(analysis, callAmount, gameState.pot, player.stack)
+          if (raiseSize <= player.stack && raiseSize >= gameState.minRaise) {
+            return { type: 'raise', amount: raiseSize }
+          } else if (callAmount <= player.stack) {
+            return { type: 'call' }
+          } else {
+            return { type: 'fold' }
+          }
+        }
+        
+      case 'all-in':
+        return { type: 'all-in', amount: player.stack }
+        
+      default:
+        return { type: 'fold' }
+    }
+  }
+
+  /**
+   * 计算下注大小
+   */
+  private static calculateBetSize(
+    analysis: ProfessionalHandAnalysis, 
+    potSize: number, 
+    stackSize: number
+  ): number {
+    let betSize = 0
+    
+    // 基于手牌类别调整下注大小
+    switch (analysis.handCategory) {
+      case 'premium':
+        betSize = potSize * 0.8 // 80%底池
+        break
+      case 'strong':
+        betSize = potSize * 0.6 // 60%底池
+        break
+      case 'medium':
+        betSize = potSize * 0.4 // 40%底池
+        break
+      default:
+        betSize = potSize * 0.3 // 30%底池（诈唬）
+    }
+    
+    // 基于胜率调整
+    if (analysis.equity >= 70) {
+      betSize *= 1.2 // 高胜率增加下注
+    } else if (analysis.equity <= 30) {
+      betSize *= 0.7 // 低胜率减少下注
+    }
+    
+    // 限制在筹码范围内
+    return Math.min(Math.max(betSize, potSize * 0.2), stackSize)
+  }
+
+  /**
+   * 计算加注大小
+   */
+  private static calculateRaiseSize(
+    analysis: ProfessionalHandAnalysis,
+    callAmount: number,
+    potSize: number,
+    stackSize: number
+  ): number {
+    let raiseSize = callAmount
+    
+    // 基于手牌强度确定加注大小
+    switch (analysis.handCategory) {
+      case 'premium':
+        raiseSize += potSize * 1.0 // 大加注
+        break
+      case 'strong':
+        raiseSize += potSize * 0.7 // 中等加注
+        break
+      case 'medium':
+        raiseSize += potSize * 0.5 // 小加注
+        break
+      default:
+        raiseSize += potSize * 0.4 // 最小加注（诈唬）
+    }
+    
+    // 位置调整
+    if (analysis.position === 'late') {
+      raiseSize *= 0.8 // 后位可以更小的加注
+    } else if (analysis.position === 'early') {
+      raiseSize *= 1.1 // 前位需要更大的加注
+    }
+    
+    return Math.min(raiseSize, stackSize)
+  }
+
+  /**
+   * 备用AI决策逻辑（当专业分析失败时使用）
+   */
+  private static getFallbackAIAction(
+    player: Player, 
+    gameState: TrainingGameState, 
+    callAmount: number
+  ): { type: ActionType, amount?: number } {
+    // 简化逻辑：保守但不完全随机
     const random = Math.random()
     
     if (callAmount === 0) {
-      // Can check
-      if (random < 0.7) return { type: 'check' }
-      if (random < 0.9) return { type: 'bet', amount: gameState.minRaise }
+      if (random < 0.6) return { type: 'check' }
+      if (random < 0.8) return { type: 'bet', amount: Math.min(gameState.minRaise, player.stack) }
       return { type: 'fold' }
     } else {
-      // Need to call or fold
-      if (random < 0.6) return { type: 'call' }
-      if (random < 0.8) return { type: 'raise', amount: currentBet * 2 }
-      return { type: 'fold' }
+      if (callAmount > player.stack * 0.3) return { type: 'fold' } // 大额跟注直接弃牌
+      if (random < 0.4) return { type: 'call' }
+      if (random < 0.6) return { type: 'fold' }
+      
+      const raiseAmount = Math.min(callAmount * 2, player.stack)
+      return { type: 'raise', amount: raiseAmount }
     }
   }
 
@@ -1243,32 +1761,36 @@ export class TrainingGameEngine {
   /**
    * Generate random cards for AI players
    */
-  private static generateRandomCards(): [Card, Card] {
-    const ranks = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] as const
-    const suits = ['hearts', 'diamonds', 'clubs', 'spades'] as const
+  private static generateRandomCards(usedCards: Card[] = []): [Card, Card] {
+    const { deck, isValid } = this.createSafeTrainingDeck(usedCards);
     
-    // Generate first card
-    const rank1 = ranks[Math.floor(Math.random() * ranks.length)]
-    const suit1 = suits[Math.floor(Math.random() * suits.length)]
+    if (!isValid || deck.getRemainingCount() < 2) {
+      console.warn('无法生成随机牌 - 使用默认安全牌');
+      // 返回安全的默认牌
+      return [
+        { rank: '2', suit: 'hearts' },
+        { rank: '3', suit: 'hearts' }
+      ];
+    }
     
-    // Generate second card (different from first)
-    let rank2: typeof ranks[number]
-    let suit2: typeof suits[number]
-    do {
-      rank2 = ranks[Math.floor(Math.random() * ranks.length)]
-      suit2 = suits[Math.floor(Math.random() * suits.length)]
-    } while (rank1 === rank2 && suit1 === suit2) // Avoid identical cards
-    
-    return [
-      { rank: rank1, suit: suit1 },
-      { rank: rank2, suit: suit2 }
-    ]
+    try {
+      return deck.dealHoleCards();
+    } catch (error) {
+      console.error('发牌失败:', error);
+      // 返回安全的默认牌
+      return [
+        { rank: '2', suit: 'hearts' },
+        { rank: '3', suit: 'hearts' }
+      ];
+    }
   }
 
   /**
-   * Generate next training scenario with specified training mode and practice position
+   * Generate next training scenario with specified training mode and practice position (FIXED - 防重复牌)
    */
   static generateNextScenario(trainingMode: string = 'general', practicePosition: number = 3): TrainingGameState {
+    console.log('🎯 生成训练场景 - 使用安全发牌系统');
+    
     // 根据训练模式生成特定的手牌场景
     const handScenario = this.generateTrainingModeScenario(trainingMode)
     
@@ -1281,13 +1803,32 @@ export class TrainingGameEngine {
     }
     this.lastGeneratedScenarios.push(handScenario.description)
     
+    // 使用专业牌组管理器创建安全场景
+    const safeScenario = DeckManager.createSafeScenario(
+      handScenario.heroCards,
+      handScenario.communityCards,
+      6 // 6人桌
+    )
+    
+    if (!safeScenario.isValid) {
+      console.error('🚨 场景生成失败:', safeScenario.errors);
+      console.error('🚨 原始场景数据:', { 
+        heroCards: handScenario.heroCards,
+        communityCards: handScenario.communityCards
+      });
+      // 回退到安全的默认场景
+      return this.generateSafeDefaultScenario(practicePosition);
+    }
+    
+    console.log('✅ 场景生成成功 - 无重复牌:', safeScenario.deck.getDebugInfo());
+    
     // 根据公共牌数量确定游戏阶段
     let stage: 'preflop' | 'flop' | 'turn' | 'river'
-    if (handScenario.communityCards.length === 0) {
+    if (safeScenario.communityCards.length === 0) {
       stage = 'preflop'
-    } else if (handScenario.communityCards.length === 3) {
+    } else if (safeScenario.communityCards.length === 3) {
       stage = 'flop' 
-    } else if (handScenario.communityCards.length === 4) {
+    } else if (safeScenario.communityCards.length === 4) {
       stage = 'turn'
     } else {
       stage = 'river'
@@ -1295,27 +1836,39 @@ export class TrainingGameEngine {
     
     // 随机生成不同的筹码量和奖池大小  
     const randomHeroStack = 150 + Math.random() * 100 // 150-250
-    const randomOpponentStack = 180 + Math.random() * 120 // 180-300
     const basePot = stage === 'flop' ? 12 : stage === 'turn' ? 24 : stage === 'river' ? 36 : 6
     const randomPotMultiplier = 0.8 + Math.random() * 0.4 // 0.8-1.2倍
     
-    // Create 6-player table with random cards
+    // Create 6-player table with safe cards
     const playerPositions = ['UTG', '中位', '后位', '庄位', '小盲', '大盲']
-    const positionCodes = ['utg', 'mp', 'co', 'button', 'sb', 'bb']
+    const positionCodes = ['UTG', 'MP', 'CO', 'BTN', 'SB', 'BB'] as Position[]
     const players: Player[] = []
     
     for (let i = 0; i < 6; i++) {
       const isHero = i === practicePosition // Hero is at the practice position
       const baseStack = 150 + Math.random() * 100
       
+      let playerCards: [Card, Card]
+      if (isHero) {
+        playerCards = safeScenario.heroCards
+      } else {
+        // Use cards from safe scenario
+        const otherPlayerIndex = players.filter(p => p.id !== 'hero').length
+        if (otherPlayerIndex < safeScenario.otherPlayerCards.length) {
+          playerCards = safeScenario.otherPlayerCards[otherPlayerIndex]
+        } else {
+          // Fallback: 如果没有足够的牌，使用默认牌（这种情况应该不会发生）
+          console.warn('⚠️ 玩家牌不足，使用默认牌');
+          playerCards = [{ rank: '2', suit: 'hearts' }, { rank: '3', suit: 'diamonds' }];
+        }
+      }
+      
       players.push({
         id: isHero ? 'hero' : `opponent-${i}`,
         name: isHero ? `${playerPositions[i]} (练习)` : playerPositions[i],
         stack: Number(baseStack.toFixed(1)),
         currentBet: stage === 'preflop' ? (i === 4 ? 1 : i === 5 ? 2 : 0) : 0, // SB=1, BB=2
-        cards: isHero 
-          ? [stringToCard(handScenario.heroCards[0]), stringToCard(handScenario.heroCards[1])] as [Card, Card]
-          : this.generateRandomCards() as [Card, Card],
+        cards: playerCards,
         position: positionCodes[i],
         isActive: true,
         isAllIn: false,
@@ -1324,15 +1877,22 @@ export class TrainingGameEngine {
       })
     }
 
-    return {
+    // 创建并初始化操作记录器
+    const actionRecorder = new ActionRecorder()
+    
+    // 创建游戏状态对象
+    const gameState: TrainingGameState = {
       id: scenarioId,
       players,
-      communityCards: handScenario.communityCards.map(cardString => stringToCard(cardString)),
+      communityCards: safeScenario.communityCards,
       pot: Number((basePot * randomPotMultiplier).toFixed(1)),
       currentPlayer: practicePosition, // Hero is at practice position
       dealer: 3, // Dealer is always at button position
+      smallBlind: 1,
+      bigBlind: 2,
       stage: stage,
       minRaise: 4,
+      lastRaise: 4,
       isTraining: true,
       currentScenario: {
         id: scenarioId,
@@ -1357,83 +1917,341 @@ export class TrainingGameEngine {
         handsPlayed: 0,
         correctDecisions: 0,
         currentStreak: 0
+      },
+      actionRecorder: actionRecorder
+    }
+    
+    // 记录游戏开始和初始状态
+    actionRecorder.recordGameStart(players, gameState.pot)
+    
+    // 记录盲注投入（如果在翻前阶段）
+    if (stage === 'preflop') {
+      const sbPlayer = players[4] // 小盲位
+      const bbPlayer = players[5] // 大盲位
+      
+      if (sbPlayer && sbPlayer.currentBet > 0) {
+        actionRecorder.recordBlindPost(sbPlayer, sbPlayer.currentBet, 'small', 0, sbPlayer.currentBet)
+      }
+      
+      if (bbPlayer && bbPlayer.currentBet > 0) {
+        actionRecorder.recordBlindPost(bbPlayer, bbPlayer.currentBet, 'big', 
+          sbPlayer?.currentBet || 0, (sbPlayer?.currentBet || 0) + bbPlayer.currentBet)
       }
     }
+    
+    return gameState
   }
 
   /**
-   * 真实结算评估 - 使用国际策略决策规则
+   * 生成安全的默认训练场景（当主场景生成失败时使用）
+   */
+  private static generateSafeDefaultScenario(practicePosition: number = 3): TrainingGameState {
+    console.log('🛡️ 使用安全默认场景');
+    
+    // 使用安全的默认牌组
+    const deck = new DeckManager();
+    
+    // 英雄手牌: AKs (强手牌但不是最强)
+    const heroCards = deck.dealHoleCards();
+    
+    // 翻牌圈场景
+    const communityCards = deck.dealCards(3);
+    
+    // 为其他5个玩家发牌
+    const otherPlayerCards: [Card, Card][] = [];
+    for (let i = 0; i < 5; i++) {
+      otherPlayerCards.push(deck.dealHoleCards());
+    }
+    
+    // 验证无重复牌
+    if (!deck.validateNoDuplicates()) {
+      console.error('🚨 默认场景也有重复牌，系统严重错误');
+    }
+    
+    const scenarioId = `safe-default-${Date.now()}`;
+    const playerPositions = ['UTG', '中位', '后位', '庄位', '小盲', '大盲'];
+    const positionCodes = ['UTG', 'MP', 'CO', 'BTN', 'SB', 'BB'] as Position[];
+    const players: Player[] = [];
+    
+    for (let i = 0; i < 6; i++) {
+      const isHero = i === practicePosition;
+      const baseStack = 150 + Math.random() * 100;
+      
+      let playerCards: [Card, Card];
+      if (isHero) {
+        playerCards = heroCards;
+      } else {
+        const otherPlayerIndex = players.filter(p => p.id !== 'hero').length;
+        playerCards = otherPlayerCards[otherPlayerIndex];
+      }
+      
+      players.push({
+        id: isHero ? 'hero' : `opponent-${i}`,
+        name: isHero ? `${playerPositions[i]} (练习)` : playerPositions[i],
+        stack: Number(baseStack.toFixed(1)),
+        currentBet: 0,
+        cards: playerCards,
+        position: positionCodes[i],
+        isActive: true,
+        isAllIn: false,
+        folded: Math.random() < 0.2 && !isHero, // 减少弃牌概率
+        actions: []
+      });
+    }
+    
+    // 创建并初始化操作记录器
+    const actionRecorder = new ActionRecorder();
+    
+    const gameState: TrainingGameState = {
+      id: scenarioId,
+      players,
+      communityCards,
+      pot: 12,
+      currentPlayer: practicePosition,
+      dealer: 3,
+      smallBlind: 1,
+      bigBlind: 2,
+      stage: 'flop',
+      minRaise: 4,
+      lastRaise: 4,
+      isTraining: true,
+      currentScenario: {
+        id: scenarioId,
+        type: 'flop',
+        description: '安全默认场景 - 翻牌圈决策',
+        situation: {
+          position: positionCodes[practicePosition],
+          stackSize: 200,
+          potOdds: 3,
+          opponents: 5,
+          aggression: 'passive'
+        },
+        recommendedAction: {
+          action: 'call',
+          reasoning: '安全场景，建议保守跟注',
+          gtoFrequency: 65
+        },
+        difficulty: 'beginner'
+      },
+      practicePosition,
+      trainingProgress: {
+        handsPlayed: 0,
+        correctDecisions: 0,
+        currentStreak: 0
+      },
+      actionRecorder
+    };
+    
+    // 记录游戏开始
+    actionRecorder.recordGameStart(players, gameState.pot);
+    
+    return gameState;
+  }
+
+  /**
+   * 专业德州扑克结算评估 - 使用边池计算系统
+   * 
+   * 专业规则要点：
+   * 1. 多人全下时创建边池结构
+   * 2. 每个边池独立评估获胜者
+   * 3. 从7张牌中选择最佳5张牌组合
+   * 4. 按照国际标准牌型排名比较
+   * 5. 奇数筹码按位置顺序分配
    */
   private static evaluateShowdown(gameState: TrainingGameState): {
     winnerId: string
     winnerName: string
     heroResult: 'win' | 'lose' | 'tie'
     analysis: string
+    sidePotResult: SidePotCalculationResult
+    detailedAnalysis: ShowdownAnalysisReport
   } {
     // 获取未弃牌的玩家
     const activePlayers = gameState.players.filter(p => !p.folded && p.cards)
     
     if (activePlayers.length === 0) {
       // 异常情况，返回默认结果
+      const emptySidePotResult: SidePotCalculationResult = {
+        sidePots: [],
+        totalPot: 0,
+        distributions: [],
+        analysis: '异常情况'
+      };
+
       return {
         winnerId: 'hero',
         winnerName: '主玩家',
         heroResult: 'win',
-        analysis: '异常情况：无活跃玩家'
+        analysis: '异常情况：无活跃玩家',
+        sidePotResult: emptySidePotResult,
+        detailedAnalysis: ShowdownAnalysisReporter.generateReport(
+          gameState.players, gameState.communityCards, gameState.stage, emptySidePotResult
+        )
       }
     }
     
     if (activePlayers.length === 1) {
       // 只有一个玩家，直接获胜
       const winner = activePlayers[0]
+      const simplePotResult: SidePotCalculationResult = {
+        sidePots: [{
+          id: 'main-pot',
+          amount: gameState.pot,
+          eligiblePlayerIds: [winner.id],
+          createdByAllIn: false,
+          allInAmount: 0
+        }],
+        totalPot: gameState.pot,
+        distributions: [{
+          playerId: winner.id,
+          playerName: winner.name,
+          amount: gameState.pot,
+          potId: 'main-pot',
+          handResult: {
+            rank: 'high-card',
+            strength: 0,
+            kickers: [],
+            description: '唯一未弃牌玩家'
+          },
+          isWinner: true,
+          isTied: false
+        }],
+        analysis: `${winner.name}获胜（唯一未弃牌玩家），获得全部奖池 $${gameState.pot}`
+      }
+
       return {
         winnerId: winner.id,
         winnerName: winner.name,
         heroResult: winner.id === 'hero' ? 'win' : 'lose',
-        analysis: `${winner.name}获胜（唯一未弃牌玩家）`
-      }
-    }
-
-    // 多个玩家结算，比较组合强度
-    let bestPlayer: Player | null = null
-    let bestStrength = -1
-    let bestRank = ''
-    
-    for (const player of activePlayers) {
-      try {
-        // 评估玩家的最佳策略组合
-        const handResult = HandEvaluator.evaluateBestHand(
-          player.cards as [Card, Card], 
-          gameState.communityCards
+        analysis: simplePotResult.analysis,
+        sidePotResult: simplePotResult,
+        detailedAnalysis: ShowdownAnalysisReporter.generateReport(
+          gameState.players, gameState.communityCards, gameState.stage, simplePotResult
         )
-        
-        if (handResult.strength > bestStrength) {
-          bestStrength = handResult.strength
-          bestPlayer = player
-          bestRank = handResult.description
-        }
-      } catch (error) {
-        console.error(`评估玩家 ${player.id} 组合强度时出错:`, error)
-        // 如果评估失败，给予最低组合强度
-        if (bestStrength === -1) {
-          bestPlayer = player
-          bestStrength = 0
-          bestRank = '高牌'
-        }
       }
     }
 
-    if (!bestPlayer) {
-      // 异常情况，返回第一个玩家
-      bestPlayer = activePlayers[0]
-      bestRank = '未知'
+    // 使用专业边池计算系统
+    const playerBetInfo: PlayerBetInfo[] = SidePotCalculator.createPlayerBetInfo(gameState.players)
+    const sidePotResult = SidePotCalculator.distributePots(
+      SidePotCalculator.calculateSidePots(playerBetInfo),
+      playerBetInfo,
+      gameState.communityCards
+    )
+
+    // 获取分配摘要
+    const summary = SidePotCalculator.getDistributionSummary(sidePotResult.distributions)
+    
+    // 确定英雄玩家的结果
+    const heroDistributions = sidePotResult.distributions.filter(d => d.playerId === 'hero')
+    const heroTotalWon = heroDistributions.reduce((sum, d) => sum + d.amount, 0)
+    
+    let heroResult: 'win' | 'lose' | 'tie'
+    if (heroTotalWon > 0) {
+      const maxWinAmount = Math.max(...sidePotResult.distributions.map(d => d.amount))
+      heroResult = heroTotalWon === maxWinAmount ? (summary.isTied ? 'tie' : 'win') : 'win'
+    } else {
+      heroResult = 'lose'
     }
+
+    // 生成详细分析报告
+    const detailedAnalysis = ShowdownAnalysisReporter.generateReport(
+      gameState.players, gameState.communityCards, gameState.stage, sidePotResult
+    );
 
     return {
-      winnerId: bestPlayer.id,
-      winnerName: bestPlayer.name,
-      heroResult: bestPlayer.id === 'hero' ? 'win' : 'lose',
-      analysis: `${bestPlayer.name}以${bestRank}获胜！`
+      winnerId: summary.winnerId,
+      winnerName: summary.winnerName,
+      heroResult,
+      analysis: sidePotResult.analysis,
+      sidePotResult,
+      detailedAnalysis
+    }
+  }
+  
+  /**
+   * 生成详细分析报告（保持与现有界面兼容）
+   */
+  private static generateDetailedAnalysisReport(pokerResult: PokerHandResult): ShowdownAnalysisReport {
+    try {
+      // 转换为现有格式，保持界面兼容性
+      const handRankings = (pokerResult.handRankings || []).map(ranking => ({
+        playerId: ranking.playerId || '',
+        playerName: ranking.playerName || '未知玩家',
+        rank: ranking.rank || 999,
+        handDescription: ranking.handEvaluation?.readableDescription || 
+                        ranking.handEvaluation?.handDescription || '未知牌型',
+        isFolded: ranking.isFolded || false,
+        finalAction: ranking.isFolded ? '弃牌' : undefined
+      }))
+      
+      const strategicInsights = [
+        {
+          category: 'hand-reading' as const,
+          title: '手牌强度分析',
+          description: pokerResult.handAnalysis.split('\n').slice(0, 3).join(' '),
+          importance: 'high' as const,
+          applicability: 'general' as const
+        }
+      ]
+      
+      const learningPoints = [
+        {
+          concept: '德州扑克胜负判定',
+          explanation: '基于7选5最佳组合的标准德州扑克规则',
+          example: pokerResult.handRankings[0]?.handEvaluation.readableDescription || '示例牌型',
+          difficulty: 'intermediate' as const
+        }
+      ]
+      
+      return {
+        overview: {
+          totalPot: pokerResult.totalPot,
+          playersInvolved: pokerResult.handRankings.length,
+          winnerCount: pokerResult.handRankings.filter(r => r.isWinner).length,
+          handType: pokerResult.handRankings.length > 2 ? 'multiway' : 'heads-up',
+          stage: 'river',
+          potStructure: pokerResult.sidePotResult.sidePots.length > 1 ? 'side-pots' : 'single-pot'
+        },
+        playerAnalysis: [],
+        handRankings,
+        strategicInsights,
+        learningPoints,
+        mathematicalAnalysis: {
+          potOddsRequired: 0,
+          impliedOdds: 0,
+          expectedValue: {},
+          riskRewardRatio: 1.0,
+          optimalPlayFrequency: {}
+        },
+        professionalCommentary: pokerResult.combinedAnalysis
+      }
+    } catch (error) {
+      console.error('生成详细分析报告失败:', error)
+      
+      // 返回空的分析报告
+      return {
+        overview: {
+          totalPot: pokerResult.totalPot,
+          playersInvolved: 0,
+          winnerCount: 0,
+          handType: 'heads-up',
+          stage: 'river',
+          potStructure: 'single-pot'
+        },
+        playerAnalysis: [],
+        handRankings: [],
+        strategicInsights: [],
+        learningPoints: [],
+        mathematicalAnalysis: {
+          potOddsRequired: 0,
+          impliedOdds: 0,
+          expectedValue: {},
+          riskRewardRatio: 1.0,
+          optimalPlayFrequency: {}
+        },
+        professionalCommentary: '分析报告生成失败'
+      }
     }
   }
 }

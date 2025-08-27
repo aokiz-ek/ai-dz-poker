@@ -128,7 +128,7 @@ export default function ReplayPage() {
               id: 'hero', 
               position: 'BTN', 
               stackSize: 500,
-              cards: [{ suit: 'hearts', rank: 'J' }, { suit: 'spades', rank: 'T' }]
+              cards: [{ suit: 'hearts', rank: 'J' }, { suit: 'spades', rank: '10' }]
             },
             { 
               id: 'villain1', 
@@ -284,7 +284,7 @@ export default function ReplayPage() {
                 name: 'Hero',
                 stack: 500,
                 position: 'BTN' as const,
-                cards: [{ suit: 'hearts', rank: 'J' }, { suit: 'spades', rank: 'T' }] as [any, any],
+                cards: [{ suit: 'hearts', rank: 'J' }, { suit: 'spades', rank: '10' }] as [any, any],
                 folded: false,
                 isAllIn: false,
                 currentBet: 0

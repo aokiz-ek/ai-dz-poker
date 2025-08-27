@@ -11,7 +11,7 @@ export class PokerEngine {
   // Create and shuffle a standard 52-card deck
   createDeck(): Card[] {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
-    const ranks: Rank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+    const ranks: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
     
     const deck: Card[] = [];
     for (const suit of suits) {
